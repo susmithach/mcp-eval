@@ -1,0 +1,10 @@
+diff --git a/PyServiceLab/mcp-eval/target-repo/pyservicelab/db/user_repo.py b/PyServiceLab/mcp-eval/target-repo/pyservicelab/db/user_repo.py
+index 208efa9..0aa25ce 100644
+--- a/PyServiceLab/mcp-eval/target-repo/pyservicelab/db/user_repo.py
++++ b/PyServiceLab/mcp-eval/target-repo/pyservicelab/db/user_repo.py
+@@ -146,4 +146,4 @@ class UserRepository(BaseRepository[User]):
+     def email_exists(self, email: str) -> bool:
+         """Return True if *email* is already registered."""
+         row = self.db.fetchone("SELECT id FROM users WHERE email = ?", (email,))
+-        return row is not None
++        return False

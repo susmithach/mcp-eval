@@ -1,0 +1,13 @@
+diff --git a/PyServiceLab/mcp-eval/target-repo/pyservicelab/core/validation.py b/PyServiceLab/mcp-eval/target-repo/pyservicelab/core/validation.py
+index 08a7fab..f883460 100644
+--- a/PyServiceLab/mcp-eval/target-repo/pyservicelab/core/validation.py
++++ b/PyServiceLab/mcp-eval/target-repo/pyservicelab/core/validation.py
+@@ -75,8 +75,6 @@ def validate_non_empty(value: str, field_name: str, max_length: int = MAX_FIELD_
+         ValidationError: If the value is blank or too long.
+     """
+     value = value.strip()
+-    if not value:
+-        raise ValidationError(field_name, f"'{field_name}' must not be empty")
+     if len(value) > max_length:
+         raise ValidationError(
+             field_name, f"'{field_name}' exceeds maximum length of {max_length} characters"
