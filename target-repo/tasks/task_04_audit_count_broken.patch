@@ -1,0 +1,10 @@
+diff --git a/PyServiceLab/mcp-eval/target-repo/pyservicelab/services/audit_service.py b/PyServiceLab/mcp-eval/target-repo/pyservicelab/services/audit_service.py
+index a238b44..070abdd 100644
+--- a/PyServiceLab/mcp-eval/target-repo/pyservicelab/services/audit_service.py
++++ b/PyServiceLab/mcp-eval/target-repo/pyservicelab/services/audit_service.py
+@@ -156,4 +156,4 @@ class AuditService:
+         """Return total audit entry count, optionally filtered by *action*."""
+         if action is not None:
+             return self._repo.count_by_action(action)
+-        return self._repo.count()
++        return 0
