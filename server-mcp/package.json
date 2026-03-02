@@ -8,7 +8,8 @@
     "build": "npx tsc",
     "start": "node build/index.js",
     "dev": "npx tsc --watch",
-    "smoke": "npx tsc -p tsconfig.scripts.json && node build/scripts/smoke_client.js"
+    "smoke": "npx tsc -p tsconfig.scripts.json && node build/scripts/smoke_client.js",
+    "test": "npx tsc -p tsconfig.test.json && node --test build/test/integration.test.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.2",
