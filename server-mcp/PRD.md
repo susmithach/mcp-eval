@@ -240,3 +240,48 @@ The smoke test is required for:
 - CI validation
 - Deterministic reproducibility
 - Server health verification before evaluation runs
+
+## 10. Integration Test Requirements
+
+The MCP server MUST include automated integration tests validating:
+
+1. Path traversal is blocked
+   - "../" attempts must throw
+   - Absolute paths outside repo must throw
+
+2. File size limits are enforced
+
+3. Search result ordering is deterministic
+
+4. run_tests only executes the approved pytest command
+
+5. git_diff returns only unstaged changes
+
+Tests must:
+- Run via `npm test`
+- Fail on any nondeterministic behavior
+- Not depend on external network
+
+## 11. Deterministic Test Execution Policy
+
+The run_tests tool MUST:
+
+- Use a fixed Python executable path
+- Execute: python -m pytest -q --disable-warnings --maxfail=1
+- Set cwd to repo root
+- Enforce a 60-second timeout
+- Not allow user-supplied arguments
+- Not use shell execution
+- Return structured result:
+  {
+    exitCode: number,
+    passed: boolean,
+    output: string
+  }
+
+The Python executable must be:
+- Provided via environment variable PYTHON_BIN
+OR
+- Explicitly documented and fixed in code
+
+Automatic Python discovery is not allowed.

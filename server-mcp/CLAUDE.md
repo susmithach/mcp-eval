@@ -91,3 +91,27 @@ Claude must ensure:
   - run_tests executes successfully
 - The smoke test exits cleanly and terminates the server process
 - No manual testing steps are allowed
+
+
+### Deterministic Behavior Enforcement
+
+Claude must:
+
+- Enforce alphabetical sorting for list_files and search results
+- Reject path traversal attempts
+- Ensure run_tests uses a fixed command with no shell
+- Ensure timeouts are enforced
+- Ensure no randomness in outputs
+- Ensure integration tests validate these guarantees
+
+
+### run_tests Hard Constraints
+
+Claude must:
+
+- Prevent arbitrary command execution
+- Prevent shell usage
+- Enforce fixed pytest flags
+- Avoid parsing timestamps from output
+- Preserve raw stdout/stderr for evaluation
+- Reject any user-provided test arguments
