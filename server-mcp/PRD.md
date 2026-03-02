@@ -218,3 +218,25 @@ server-mcp/logs/mcp.log
 4. All tools respond correctly
 5. Invalid paths are rejected
 6. No crashes on malformed input
+
+
+## 9. Smoke Test Requirement
+
+The MCP server MUST include a reproducible smoke test that:
+
+- Launches the server via stdio
+- Connects using MCP client
+- Calls listTools()
+- Calls each tool exactly once with safe inputs
+- Exits cleanly with code 0 on success
+
+The smoke test must:
+- Be runnable via `npm run smoke`
+- Spawn the server internally
+- Not require manual terminal coordination
+- Fail with non-zero exit code on any error
+
+The smoke test is required for:
+- CI validation
+- Deterministic reproducibility
+- Server health verification before evaluation runs
