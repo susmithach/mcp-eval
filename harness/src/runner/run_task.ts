@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { McpHarnessClient } from "../mcp/client.js";
+import type { Strategy } from "../strategies/strategy.js";
 import { MetricsTracker } from "./metrics.js";
 import type { ResultSchema } from "./result_schema.js";
 import { applyTask, resetRepo } from "./repo.js";
@@ -19,6 +19,7 @@ export interface RunTaskParams {
   task_patch_file: string;
   strategy_name: string;
   run_id: string;
+  strategy: Strategy;
 }
 
 // ---------------------------------------------------------------------------
@@ -26,45 +27,27 @@ export interface RunTaskParams {
 // ---------------------------------------------------------------------------
 
 export async function runTask(params: RunTaskParams): Promise<ResultSchema> {
-  const { task_id, task_patch_file, strategy_name, run_id } = params;
+  const { task_id, task_patch_file, strategy_name, run_id, strategy } = params;
   const metrics = new MetricsTracker();
-  const client = new McpHarnessClient();
 
-  let testsPassed = false;
-  let runError: string | undefined;
-
+  // 1–2) Repo setup — short-circuit with error result if this fails
   try {
-    // 1) Reset repo to clean baseline
     await resetRepo();
-
-    // 2) Apply the task patch
     await applyTask(task_patch_file);
-
-    // 3–5) MCP operations — close() is guaranteed via finally
-    await client.connect();
-    try {
-      // Iteration 1: run tests, record outcome
-      metrics.incrementIterations();
-      const testResult = await client.runTests();
-      metrics.recordToolCall("run_tests");
-      testsPassed = testResult.passed;
-
-      // Iteration 2: inspect diff
-      metrics.incrementIterations();
-      await client.gitDiff();
-      metrics.recordToolCall("git_diff");
-    } finally {
-      await client.close();
-    }
   } catch (err) {
-    runError = err instanceof Error ? err.message : String(err);
+    const result = metrics.finish(
+      false,
+      err instanceof Error ? err.message : String(err),
+    );
+    await saveResult(task_id, strategy_name, run_id, result);
+    return result;
   }
 
+  // 3–5) Delegate to strategy — strategy owns its own error handling
+  //      and calls metrics.finish() exactly once before returning
+  const result = await strategy.run({ task_id, metrics });
+
   // 6) Persist result
-  const result = metrics.finish(
-    runError === undefined ? testsPassed : false,
-    runError,
-  );
   await saveResult(task_id, strategy_name, run_id, result);
   return result;
 }
