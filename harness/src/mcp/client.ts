@@ -1,5 +1,8 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import {
+  getDefaultEnvironment,
+  StdioClientTransport,
+} from "@modelcontextprotocol/sdk/client/stdio.js";
 
 // ---------------------------------------------------------------------------
 // Result types (mirror server-mcp response shapes)
@@ -54,6 +57,13 @@ export class McpHarnessClient {
     this.transport = new StdioClientTransport({
       command: "node",
       args: ["../server-mcp/build/index.js"],
+      // Inherit safe env vars and resolve the Python binary.
+      // Respects PYTHON_BIN from the harness environment; defaults to python3
+      // because `python` is not available on this system.
+      env: {
+        ...getDefaultEnvironment(),
+        PYTHON_BIN: process.env["PYTHON_BIN"] ?? "python3",
+      },
     });
     this.client = new Client({ name: "harness", version: "0.1.0" });
   }
