@@ -10,7 +10,8 @@
     "start": "node dist/index.js",
     "typecheck": "npx tsc --noEmit",
     "mcp:smoke": "npm run build && node dist/mcp/smoke.js",
-    "repo:smoke": "npm run build && node dist/runner/repo_smoke.js"
+    "repo:smoke": "npm run build && node dist/runner/repo_smoke.js",
+    "run:one": "npm run build && node dist/index.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
