@@ -75,3 +75,19 @@ Before stopping, Claude must:
    - build
    - start
 5. Ensure server starts without runtime errors
+
+
+### Smoke Test Enforcement
+
+Claude must ensure:
+
+- A smoke client exists under scripts/
+- It programmatically spawns the server
+- It verifies:
+  - Tool registration
+  - Safe file listing
+  - File read within limit
+  - Search returns deterministic order
+  - run_tests executes successfully
+- The smoke test exits cleanly and terminates the server process
+- No manual testing steps are allowed
