@@ -1,0 +1,23 @@
+{
+  "name": "server-mcp",
+  "version": "1.0.0",
+  "description": "PyServiceLab MCP Server — tool-based access to the target repository",
+  "type": "module",
+  "main": "build/index.js",
+  "scripts": {
+    "build": "npx tsc",
+    "start": "node build/index.js",
+    "dev": "npx tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.10.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
