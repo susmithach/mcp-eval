@@ -67,11 +67,11 @@ const TOOL_CASES: readonly ToolCase[] = [
     input: { query: "pyservicelab", path: ".", limit: 5 },
   },
   {
-    // pytest --collect-only discovers tests without executing them.
-    // runProcess always resolves, so the MCP call succeeds even if pytest is
+    // Bare command — the tool enforces its own fixed flags internally.
+    // spawnPytest always resolves, so the MCP call succeeds even if python is
     // unavailable (the tool returns exit_code:1 in that case).
     tool: "run_tests",
-    input: { command: "pytest --collect-only -q" },
+    input: { command: "pytest" },
   },
   {
     // Intentionally non-applicable patch: git apply will reject it, returning
