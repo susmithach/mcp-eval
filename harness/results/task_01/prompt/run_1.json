@@ -1,0 +1,10 @@
+{
+  "success": false,
+  "error": null,
+  "runtime_ms": 77,
+  "iterations": 1,
+  "tool_calls_total": 0,
+  "tool_calls_by_name": {},
+  "tokens_in": 0,
+  "tokens_out": 0
+}
