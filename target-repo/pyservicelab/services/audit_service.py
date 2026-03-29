@@ -1,6 +1,7 @@
 """Audit service – records and queries audit log entries."""
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Optional
 
 from pyservicelab.db.audit_repo import AuditRepository
@@ -157,3 +158,17 @@ class AuditService:
         if action is not None:
             return self._repo.count_by_action(action)
         return self._repo.count()
+
+    def purge_old_entries(self, days: int) -> int:
+        """Delete audit entries older than *days* days.
+
+        Args:
+            days: Entries older than this many days from now are removed.
+
+        Returns:
+            Number of entries deleted.
+        """
+        from pyservicelab.core.time import utcnow
+
+        cutoff = utcnow() - timedelta(days=days)
+        return self._repo.purge_before(cutoff)

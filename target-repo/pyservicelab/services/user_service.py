@@ -135,6 +135,17 @@ class UserService:
         """Return all users in ACTIVE status."""
         return self._repo.list_by_status(UserStatus.ACTIVE)
 
+    def search_users(self, query: str) -> list[User]:
+        """Return users whose username or email contains *query*.
+
+        Args:
+            query: Substring to search for (case-insensitive).
+
+        Returns:
+            List of matching users (empty list if none match).
+        """
+        return self._repo.search_by_query(query)
+
     # ------------------------------------------------------------------
     # Update
     # ------------------------------------------------------------------

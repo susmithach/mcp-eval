@@ -147,3 +147,22 @@ class UserRepository(BaseRepository[User]):
         """Return True if *email* is already registered."""
         row = self.db.fetchone("SELECT id FROM users WHERE email = ?", (email,))
         return row is not None
+
+    def search_by_query(self, query: str) -> list[User]:
+        """Return users whose username or email contains *query* (case-insensitive).
+
+        Uses SQL LIKE with ``%query%`` wildcards.  Results are ordered by
+        username ascending.
+
+        Args:
+            query: Substring to match against username or email.
+
+        Returns:
+            Users matching the query, ordered by username ascending.
+        """
+        pattern = f"%{query}%"
+        rows = self.db.fetchall(
+            "SELECT * FROM users WHERE username LIKE ? OR email LIKE ? ORDER BY username ASC",
+            (pattern, pattern),
+        )
+        return [self._row_to_model(r) for r in rows]

@@ -156,3 +156,34 @@ class TestDeleteUser:
     def test_delete_nonexistent_raises(self, user_service: UserService) -> None:
         with pytest.raises(NotFoundError):
             user_service.delete_user(99999)
+
+
+class TestSearchUsers:
+    def test_search_by_username_substring(self, user_service: UserService) -> None:
+        make_user(user_service, username="alice_smith")
+        make_user(user_service, username="bob_jones")
+        results = user_service.search_users("alice")
+        assert len(results) == 1
+        assert results[0].username == "alice_smith"
+
+    def test_search_by_email_substring(self, user_service: UserService) -> None:
+        make_user(user_service, username="carol")
+        results = user_service.search_users("carol@example")
+        assert len(results) == 1
+        assert results[0].username == "carol"
+
+    def test_search_returns_multiple_matches(self, user_service: UserService) -> None:
+        make_user(user_service, username="admin_user")
+        make_user(user_service, username="admin_super")
+        make_user(user_service, username="regular_user")
+        results = user_service.search_users("admin")
+        assert len(results) == 2
+
+    def test_search_no_match_returns_empty(self, user_service: UserService) -> None:
+        make_user(user_service, username="dave")
+        assert user_service.search_users("zzznomatch") == []
+
+    def test_search_case_insensitive(self, user_service: UserService) -> None:
+        make_user(user_service, username="EVE")
+        # SQLite LIKE is case-insensitive for ASCII by default
+        assert len(user_service.search_users("eve")) == 1

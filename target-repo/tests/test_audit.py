@@ -166,3 +166,71 @@ class TestAuditService:
         make_user(user_service, username="audited_user")
         entries = audit_service.for_resource("user")
         assert len(entries) >= 1
+
+
+class TestAuditRepoPurge:
+    def test_purge_before_removes_old_entries(
+        self, audit_repo: AuditRepository
+    ) -> None:
+        from datetime import timedelta
+
+        from pyservicelab.core.time import utcnow
+
+        old = AuditEntry(
+            id=None,
+            timestamp=utcnow() - timedelta(days=10),
+            user_id=None,
+            action=AuditAction.CREATE,
+            resource_type="user",
+            resource_id=None,
+            details="old entry",
+            ip_address=None,
+            success=True,
+        )
+        audit_repo.create(old)
+        audit_repo.create(AuditEntry.make(AuditAction.UPDATE, "user", "recent entry"))
+        cutoff = utcnow() - timedelta(days=5)
+        deleted = audit_repo.purge_before(cutoff)
+        assert deleted == 1
+        assert audit_repo.count() == 1
+
+    def test_purge_before_returns_zero_when_nothing_old(
+        self, audit_repo: AuditRepository
+    ) -> None:
+        from datetime import timedelta
+
+        from pyservicelab.core.time import utcnow
+
+        audit_repo.create(AuditEntry.make(AuditAction.CREATE, "user", "new entry"))
+        cutoff = utcnow() - timedelta(days=30)
+        assert audit_repo.purge_before(cutoff) == 0
+
+
+class TestAuditServicePurge:
+    def test_purge_old_entries_deletes_stale(
+        self, audit_service: AuditService, audit_repo: AuditRepository
+    ) -> None:
+        from datetime import timedelta
+
+        from pyservicelab.core.time import utcnow
+
+        old = AuditEntry(
+            id=None,
+            timestamp=utcnow() - timedelta(days=10),
+            user_id=None,
+            action=AuditAction.DELETE,
+            resource_type="project",
+            resource_id=None,
+            details="stale entry",
+            ip_address=None,
+            success=True,
+        )
+        audit_repo.create(old)
+        audit_service.log(AuditAction.CREATE, "user", "recent entry")
+        assert audit_service.purge_old_entries(days=5) == 1
+
+    def test_purge_old_entries_returns_count(
+        self, audit_service: AuditService
+    ) -> None:
+        audit_service.log(AuditAction.CREATE, "user", "fresh entry")
+        assert audit_service.purge_old_entries(days=1) == 0

@@ -127,3 +127,17 @@ class AuditRepository(BaseRepository[AuditEntry]):
             (action.value,),
         )
         return row["cnt"] if row else 0
+
+    def purge_before(self, cutoff: datetime) -> int:
+        """Delete all audit entries with timestamp strictly before *cutoff*.
+
+        Args:
+            cutoff: UTC datetime threshold; entries older than this are removed.
+
+        Returns:
+            Number of rows deleted.
+        """
+        return self._execute_update(
+            "DELETE FROM audit_log WHERE timestamp < ?",
+            (cutoff.isoformat(),),
+        )
