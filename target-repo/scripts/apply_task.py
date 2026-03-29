@@ -15,30 +15,79 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from typing import TypedDict
 
 # ---------------------------------------------------------------------------
-# Registry: map task name → expected failing test node-ids (for guidance)
+# Registry: map task name → task type + expected failing test node-ids
 # ---------------------------------------------------------------------------
 
-TASK_REGISTRY: dict[str, list[str]] = {
-    "task_01_token_expiry_bypass": [
-        "tests/test_auth.py::TestTokens::test_decode_expired_token",
-    ],
-    "task_02_project_tags_inverted": [
-        "tests/test_projects.py::TestProjectTags::test_create_with_tags",
-        "tests/test_projects.py::TestProjectTags::test_update_tags",
-    ],
-    "task_03_empty_name_accepted": [
-        "tests/test_projects.py::TestCreateProject::test_create_empty_name_raises",
-        "tests/test_tasks.py::TestCreateTask::test_create_empty_title_raises",
-    ],
-    "task_04_audit_count_broken": [
-        "tests/test_audit.py::TestAuditService::test_count_total",
-    ],
-    "task_05_email_exists_always_false": [
-        "tests/test_users.py::TestCreateUser::test_create_duplicate_email_raises",
-        "tests/test_auth.py::TestRegister::test_register_duplicate_email_raises",
-    ],
+
+class TaskInfo(TypedDict):
+    task_type: str  # "bug_fix" | "feature" | "test_fix"
+    failing_tests: list[str]
+
+
+TASK_REGISTRY: dict[str, TaskInfo] = {
+    "task_01_token_expiry_bypass": {
+        "task_type": "bug_fix",
+        "failing_tests": [
+            "tests/test_auth.py::TestTokens::test_decode_expired_token",
+        ],
+    },
+    "task_02_project_tags_inverted": {
+        "task_type": "bug_fix",
+        "failing_tests": [
+            "tests/test_projects.py::TestProjectTags::test_create_with_tags",
+            "tests/test_projects.py::TestProjectTags::test_update_tags",
+        ],
+    },
+    "task_03_empty_name_accepted": {
+        "task_type": "bug_fix",
+        "failing_tests": [
+            "tests/test_projects.py::TestCreateProject::test_create_empty_name_raises",
+            "tests/test_tasks.py::TestCreateTask::test_create_empty_title_raises",
+        ],
+    },
+    "task_04_audit_count_broken": {
+        "task_type": "bug_fix",
+        "failing_tests": [
+            "tests/test_audit.py::TestAuditService::test_count_total",
+        ],
+    },
+    "task_05_email_exists_always_false": {
+        "task_type": "bug_fix",
+        "failing_tests": [
+            "tests/test_users.py::TestCreateUser::test_create_duplicate_email_raises",
+            "tests/test_auth.py::TestRegister::test_register_duplicate_email_raises",
+        ],
+    },
+    "task_06_user_search_stubbed": {
+        "task_type": "feature",
+        "failing_tests": [
+            "tests/test_users.py::TestSearchUsers::test_search_by_username_substring",
+            "tests/test_users.py::TestSearchUsers::test_search_by_email_substring",
+            "tests/test_users.py::TestSearchUsers::test_search_returns_multiple_matches",
+            "tests/test_users.py::TestSearchUsers::test_search_case_insensitive",
+        ],
+    },
+    "task_07_audit_purge_stubbed": {
+        "task_type": "feature",
+        "failing_tests": [
+            "tests/test_audit.py::TestAuditServicePurge::test_purge_old_entries_deletes_stale",
+        ],
+    },
+    "task_08_test_role_assertion_wrong": {
+        "task_type": "test_fix",
+        "failing_tests": [
+            "tests/test_users.py::TestCreateUser::test_create_default_role_is_member",
+        ],
+    },
+    "task_09_test_count_wrong": {
+        "task_type": "test_fix",
+        "failing_tests": [
+            "tests/test_users.py::TestListUsers::test_list_returns_all",
+        ],
+    },
 }
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -96,12 +145,13 @@ def main(argv: list[str] | None = None) -> None:
     patch_path = _find_patch(task_name)
     _apply_patch(patch_path)
 
-    expected = TASK_REGISTRY.get(task_name, [])
-    if expected:
+    task_info = TASK_REGISTRY.get(task_name)
+    if task_info:
+        print(f"\nTask type: {task_info['task_type']}")
         print("\nExpected failing test(s):")
-        for t in expected:
+        for t in task_info["failing_tests"]:
             print(f"  {t}")
-        print(f"\nRun:  pytest {' '.join(expected)}")
+        print(f"\nRun:  pytest {' '.join(task_info['failing_tests'])}")
     else:
         print("\n(No failing tests registered for this task.)")
 

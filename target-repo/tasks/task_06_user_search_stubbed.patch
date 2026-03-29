@@ -1,0 +1,16 @@
+diff --git a/target-repo/pyservicelab/db/user_repo.py b/target-repo/pyservicelab/db/user_repo.py
+index b001cea..88e4dbb 100644
+--- a/target-repo/pyservicelab/db/user_repo.py
++++ b/target-repo/pyservicelab/db/user_repo.py
+@@ -160,9 +160,5 @@ class UserRepository(BaseRepository[User]):
+         Returns:
+             Users matching the query, ordered by username ascending.
+         """
+-        pattern = f"%{query}%"
+-        rows = self.db.fetchall(
+-            "SELECT * FROM users WHERE username LIKE ? OR email LIKE ? ORDER BY username ASC",
+-            (pattern, pattern),
+-        )
+-        return [self._row_to_model(r) for r in rows]
++        # stub: search not yet implemented
++        return []
