@@ -19,8 +19,9 @@ export class McpStrategy implements Strategy {
 
         // Iteration 2: inspect diff
         ctx.metrics.incrementIterations();
-        await client.gitDiff();
+        const diff = await client.gitDiff();
         ctx.metrics.recordToolCall("git_diff");
+        ctx.metrics.setFinalDiff(diff.diff);
       } finally {
         await client.close();
       }
@@ -29,6 +30,7 @@ export class McpStrategy implements Strategy {
     }
 
     return ctx.metrics.finish(
+      ctx.task_type,
       runError === undefined ? testsPassed : false,
       runError,
     );

@@ -1,8 +1,9 @@
 import type { MetricsTracker } from "../runner/metrics.js";
-import type { ResultSchema } from "../runner/result_schema.js";
+import type { ResultSchema, TaskType } from "../runner/result_schema.js";
 
 export interface StrategyContext {
   task_id: string;
+  task_type: TaskType;
   metrics: MetricsTracker;
 }
 

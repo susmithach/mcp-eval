@@ -1,4 +1,4 @@
-import type { ResultSchema } from "./result_schema.js";
+import type { ResultSchema, TaskType } from "./result_schema.js";
 
 export class MetricsTracker {
   private readonly startedAt: number;
@@ -6,6 +6,7 @@ export class MetricsTracker {
   private _toolCallsByName: Record<string, number> = {};
   private _tokensIn = 0;
   private _tokensOut = 0;
+  private _finalDiff = "";
 
   constructor() {
     this.startedAt = Date.now();
@@ -24,13 +25,18 @@ export class MetricsTracker {
     this._tokensOut += tokensOut;
   }
 
-  finish(success: boolean, error?: string): ResultSchema {
+  setFinalDiff(diff: string): void {
+    this._finalDiff = diff;
+  }
+
+  finish(task_type: TaskType, success: boolean, error?: string): ResultSchema {
     const runtime_ms = Math.round(Date.now() - this.startedAt);
     const tool_calls_total = Object.values(this._toolCallsByName).reduce(
       (sum, n) => sum + n,
       0,
     );
     return {
+      task_type,
       success,
       error: error ?? null,
       runtime_ms,
@@ -39,6 +45,7 @@ export class MetricsTracker {
       tool_calls_by_name: { ...this._toolCallsByName },
       tokens_in: this._tokensIn,
       tokens_out: this._tokensOut,
+      final_diff: this._finalDiff,
     };
   }
 }

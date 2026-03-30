@@ -3,7 +3,12 @@
  * All fields are always present so downstream consumers can rely on a fixed shape.
  * Timestamps are intentionally omitted — only duration (runtime_ms) is stored.
  */
+export type TaskType = "bug_fix" | "feature" | "test_fix";
+
 export interface ResultSchema {
+  // Task metadata
+  task_type: TaskType;
+
   // Outcome
   success: boolean;
   error: string | null;
@@ -21,4 +26,7 @@ export interface ResultSchema {
   // Token usage (populated when an LLM is involved; default 0)
   tokens_in: number;
   tokens_out: number;
+
+  // Final unified diff of all changes the agent made (empty string if none)
+  final_diff: string;
 }

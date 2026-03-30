@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Strategy } from "../strategies/strategy.js";
 import { MetricsTracker } from "./metrics.js";
-import type { ResultSchema } from "./result_schema.js";
+import type { ResultSchema, TaskType } from "./result_schema.js";
 import { applyTask, resetRepo } from "./repo.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -17,6 +17,7 @@ const HARNESS_ROOT = resolve(__dirname, "../..");
 export interface RunTaskParams {
   task_id: string;
   task_patch_file: string;
+  task_type: TaskType;
   strategy_name: string;
   run_id: string;
   strategy: Strategy;
@@ -27,7 +28,7 @@ export interface RunTaskParams {
 // ---------------------------------------------------------------------------
 
 export async function runTask(params: RunTaskParams): Promise<ResultSchema> {
-  const { task_id, task_patch_file, strategy_name, run_id, strategy } = params;
+  const { task_id, task_patch_file, task_type, strategy_name, run_id, strategy } = params;
   const metrics = new MetricsTracker();
 
   // 1–2) Repo setup — short-circuit with error result if this fails
@@ -36,6 +37,7 @@ export async function runTask(params: RunTaskParams): Promise<ResultSchema> {
     await applyTask(task_patch_file);
   } catch (err) {
     const result = metrics.finish(
+      task_type,
       false,
       err instanceof Error ? err.message : String(err),
     );
@@ -45,7 +47,7 @@ export async function runTask(params: RunTaskParams): Promise<ResultSchema> {
 
   // 3–5) Delegate to strategy — strategy owns its own error handling
   //      and calls metrics.finish() exactly once before returning
-  const result = await strategy.run({ task_id, metrics });
+  const result = await strategy.run({ task_id, task_type, metrics });
 
   // 6) Persist result
   await saveResult(task_id, strategy_name, run_id, result);
