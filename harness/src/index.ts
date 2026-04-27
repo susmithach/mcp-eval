@@ -8,7 +8,8 @@ import { summarise, saveSummary } from "./runner/aggregator.js";
 import type { ResultSchema, TaskType } from "./runner/result_schema.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const RESULTS_DIR = resolve(__dirname, "../../results");
+// dist/ → ../results = harness/results
+const RESULTS_DIR = resolve(__dirname, "../results");
 
 // ---------------------------------------------------------------------------
 // Task registry

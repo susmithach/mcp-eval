@@ -1,11 +1,10 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { McpHarnessClient } from "../mcp/client.js";
+import { createLlmProvider } from "../llm/provider.js";
 import { McpHarnessClient as McpClient } from "../mcp/client.js";
 import { loadPrompt } from "../runner/prompt_loader.js";
 import type { ResultSchema } from "../runner/result_schema.js";
 import type { Strategy, StrategyContext } from "./strategy.js";
 
-const MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS = 8096;
 
 // ---------------------------------------------------------------------------
@@ -68,10 +67,6 @@ function extractPatch(text: string): string | null {
 
 export class PromptOnlyStrategy implements Strategy {
   async run(ctx: StrategyContext): Promise<ResultSchema> {
-    if (!process.env["ANTHROPIC_API_KEY"]) {
-      throw new Error("ANTHROPIC_API_KEY environment variable is not set");
-    }
-
     const client = new McpClient();
     let testsPassed = false;
     let runError: string | undefined;
@@ -119,29 +114,23 @@ export class PromptOnlyStrategy implements Strategy {
 
       // 4. Single Claude API call — no tools
       const systemPrompt = await loadPrompt(ctx.task_type, ctx.task_id);
-      const anthropic = new Anthropic();
+      const { provider } = createLlmProvider();
 
       ctx.metrics.incrementIterations();
 
-      const response = await anthropic.messages.create({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userMessage }],
+      const response = await provider.createText({
+        systemPrompt,
+        userMessage,
+        maxTokens: MAX_TOKENS,
       });
 
       ctx.metrics.addTokens(
-        response.usage.input_tokens,
-        response.usage.output_tokens,
+        response.usage.inputTokens,
+        response.usage.outputTokens,
       );
 
       // 5. Extract and apply the patch
-      const responseText = response.content
-        .filter((b) => b.type === "text")
-        .map((b) => ("text" in b ? (b.text as string) : ""))
-        .join("");
-
-      const patch = extractPatch(responseText);
+      const patch = extractPatch(response.text);
       if (patch) {
         await client.applyPatch(patch);
         // Application errors are non-fatal — final tests determine success

@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { ResultSchema, TaskType } from "./result_schema.js";
 
@@ -59,6 +59,8 @@ export async function saveSummary(
   strategy: string,
   summary: RunSummary,
 ): Promise<void> {
+  const dir = resolve(resultsDir, task_id, strategy);
+  await mkdir(dir, { recursive: true });
   const file = resolve(resultsDir, task_id, strategy, "summary.json");
   await writeFile(file, JSON.stringify(summary, null, 2) + "\n", "utf8");
 }

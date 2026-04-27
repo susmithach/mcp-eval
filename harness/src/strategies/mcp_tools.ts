@@ -1,16 +1,16 @@
-import type { Tool, ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages.js";
 import type { McpHarnessClient } from "../mcp/client.js";
+import type { LlmToolDefinition } from "../llm/types.js";
 
 // ---------------------------------------------------------------------------
 // Tool definitions — mirrors the MCP server's input schemas
 // ---------------------------------------------------------------------------
 
-export const MCP_TOOL_DEFINITIONS: Tool[] = [
+export const MCP_TOOL_DEFINITIONS: LlmToolDefinition[] = [
   {
     name: "list_files",
     description:
       "List files and directories at the given path inside the target repository.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         path: {
@@ -24,7 +24,7 @@ export const MCP_TOOL_DEFINITIONS: Tool[] = [
   {
     name: "read_file",
     description: "Read the full contents of a file inside the target repository.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         path: {
@@ -39,7 +39,7 @@ export const MCP_TOOL_DEFINITIONS: Tool[] = [
     name: "search_in_files",
     description:
       "Search for a string pattern across files in the target repository. Results are sorted alphabetically.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         query: {
@@ -58,7 +58,7 @@ export const MCP_TOOL_DEFINITIONS: Tool[] = [
     name: "run_tests",
     description:
       "Run the full pytest suite and return exit_code, stdout, stderr, and passed (boolean).",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {},
     },
@@ -67,7 +67,7 @@ export const MCP_TOOL_DEFINITIONS: Tool[] = [
     name: "apply_patch",
     description:
       "Apply a unified diff patch to modify source files. The patch must be in standard unified diff format.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         patch: {
@@ -81,7 +81,7 @@ export const MCP_TOOL_DEFINITIONS: Tool[] = [
   {
     name: "git_diff",
     description: "Return the current git diff of all changes made so far.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {},
     },
@@ -96,8 +96,7 @@ export async function dispatchTool(
   client: McpHarnessClient,
   name: string,
   input: Record<string, unknown>,
-): Promise<ToolResultBlockParam> {
-  let content: string;
+): Promise<string> {
   try {
     let result: unknown;
     switch (name) {
@@ -125,10 +124,10 @@ export async function dispatchTool(
       default:
         throw new Error(`Unknown tool: "${name}"`);
     }
-    content = JSON.stringify(result);
+    return JSON.stringify(result);
   } catch (err) {
-    content = JSON.stringify({ error: err instanceof Error ? err.message : String(err) });
+    return JSON.stringify({
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
-
-  return { type: "tool_result", tool_use_id: "", content };
 }

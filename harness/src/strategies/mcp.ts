@@ -1,21 +1,16 @@
-import Anthropic from "@anthropic-ai/sdk";
-import type { MessageParam, ToolUseBlock } from "@anthropic-ai/sdk/resources/messages.js";
 import { McpHarnessClient } from "../mcp/client.js";
+import { createLlmProvider } from "../llm/provider.js";
+import type { LlmConversationMessage } from "../llm/types.js";
 import { loadPrompt } from "../runner/prompt_loader.js";
 import type { ResultSchema } from "../runner/result_schema.js";
 import type { Strategy, StrategyContext } from "./strategy.js";
 import { MCP_TOOL_DEFINITIONS, dispatchTool } from "./mcp_tools.js";
 
-const MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS = 8096;
 const MAX_ITERATIONS = 20;
 
 export class McpStrategy implements Strategy {
   async run(ctx: StrategyContext): Promise<ResultSchema> {
-    if (!process.env["ANTHROPIC_API_KEY"]) {
-      throw new Error("ANTHROPIC_API_KEY environment variable is not set");
-    }
-
     const client = new McpHarnessClient();
     let testsPassed = false;
     let runError: string | undefined;
@@ -24,12 +19,13 @@ export class McpStrategy implements Strategy {
       await client.connect();
 
       const systemPrompt = await loadPrompt(ctx.task_type, ctx.task_id);
-      const anthropic = new Anthropic();
+      const { provider } = createLlmProvider();
 
-      const messages: MessageParam[] = [
+      const messages: LlmConversationMessage[] = [
         {
           role: "user",
-          content:
+          kind: "text",
+          text:
             "Please begin. Use run_tests to see what is currently failing, then read the relevant source files and fix the code.",
         },
       ];
@@ -40,44 +36,47 @@ export class McpStrategy implements Strategy {
         ctx.metrics.incrementIterations();
         iterations++;
 
-        const response = await anthropic.messages.create({
-          model: MODEL,
-          max_tokens: MAX_TOKENS,
-          system: systemPrompt,
-          tools: MCP_TOOL_DEFINITIONS,
+        const response = await provider.createToolResponse({
+          systemPrompt,
           messages,
+          tools: MCP_TOOL_DEFINITIONS,
+          maxTokens: MAX_TOKENS,
         });
 
         ctx.metrics.addTokens(
-          response.usage.input_tokens,
-          response.usage.output_tokens,
+          response.usage.inputTokens,
+          response.usage.outputTokens,
         );
 
-        // Append assistant turn to conversation history
-        messages.push({ role: "assistant", content: response.content });
+        messages.push({
+          role: "assistant",
+          kind: "assistant",
+          text: response.text,
+          toolCalls: response.toolCalls,
+        });
 
-        // If Claude made no tool calls, it's done
-        if (response.stop_reason !== "tool_use") break;
-
-        // Process every tool_use block in this response
-        const toolUseBlocks = response.content.filter(
-          (b): b is ToolUseBlock => b.type === "tool_use",
-        );
+        if (response.toolCalls.length === 0) break;
 
         const toolResults = await Promise.all(
-          toolUseBlocks.map(async (block) => {
-            ctx.metrics.recordToolCall(block.name);
-            const result = await dispatchTool(
+          response.toolCalls.map(async (toolCall) => {
+            ctx.metrics.recordToolCall(toolCall.name);
+            const content = await dispatchTool(
               client,
-              block.name,
-              block.input as Record<string, unknown>,
+              toolCall.name,
+              toolCall.input,
             );
-            // Attach the correct tool_use_id for this specific block
-            return { ...result, tool_use_id: block.id };
+            return {
+              toolCallId: toolCall.id,
+              content,
+            };
           }),
         );
 
-        messages.push({ role: "user", content: toolResults });
+        messages.push({
+          role: "user",
+          kind: "tool_results",
+          results: toolResults,
+        });
       }
 
       // Ground-truth success check — independent of what Claude claims
