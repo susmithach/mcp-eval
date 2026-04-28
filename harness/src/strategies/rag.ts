@@ -8,6 +8,7 @@ import type { Strategy, StrategyContext } from "./strategy.js";
 
 const MAX_TOKENS = 8096;
 const TOP_K = 6;
+const MAX_ITERATIONS = 3;
 
 function extractPatch(text: string): string | null {
   const tagged = text.match(/<patch>([\s\S]*?)<\/patch>/);
@@ -94,49 +95,58 @@ export class RagStrategy implements Strategy {
     try {
       await client.connect();
 
-      const initialTests = await client.runTests(ctx.expected_failing_tests);
-      const testOutput = [
-        initialTests.stdout,
-        initialTests.stderr,
-      ]
-        .filter(Boolean)
-        .join("\n")
-        .trim() || "(no output)";
-
       const index = await buildRagIndex();
-      const retrievalQuery = buildRetrievalQuery(ctx, testOutput);
-      const retrievedChunks = retrieveRelevantChunks(index, retrievalQuery, {
-        topK: TOP_K,
-      });
-      const retrievedContext = buildRetrievedContext(retrievedChunks);
-
       const systemPrompt = await loadPrompt(ctx.task_type, ctx.task_id);
-      const userMessage = buildUserMessage(ctx, testOutput, retrievedContext);
       const { provider } = createLlmProvider();
 
-      ctx.metrics.incrementIterations();
+      let latestTests = await client.runTests(ctx.expected_failing_tests);
+      testsPassed = latestTests.passed;
 
-      const response = await provider.createText({
-        systemPrompt,
-        userMessage,
-        maxTokens: MAX_TOKENS,
-      });
+      for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+        if (testsPassed) {
+          break;
+        }
 
-      ctx.metrics.addTokens(
-        response.usage.inputTokens,
-        response.usage.outputTokens,
-      );
+        const testOutput = [
+          latestTests.stdout,
+          latestTests.stderr,
+        ]
+          .filter(Boolean)
+          .join("\n")
+          .trim() || "(no output)";
 
-      const patch = extractPatch(response.text);
-      if (patch) {
+        const retrievalQuery = buildRetrievalQuery(ctx, testOutput);
+        const retrievedChunks = retrieveRelevantChunks(index, retrievalQuery, {
+          topK: TOP_K,
+        });
+        const retrievedContext = buildRetrievedContext(retrievedChunks);
+        const userMessage = buildUserMessage(ctx, testOutput, retrievedContext);
+
+        ctx.metrics.incrementIterations();
+
+        const response = await provider.createText({
+          systemPrompt,
+          userMessage,
+          maxTokens: MAX_TOKENS,
+        });
+
+        ctx.metrics.addTokens(
+          response.usage.inputTokens,
+          response.usage.outputTokens,
+        );
+
+        const patch = extractPatch(response.text);
+        if (!patch) {
+          break;
+        }
+
         await client.applyPatch(patch);
+        latestTests = await client.runTests(ctx.expected_failing_tests);
+        testsPassed = latestTests.passed;
       }
 
-      const finalTests = await client.runTests(ctx.expected_failing_tests);
-      ctx.metrics.recordToolCall("run_tests");
-      testsPassed = finalTests.passed;
-
       const diff = await client.gitDiff();
+      ctx.metrics.recordToolCall("run_tests");
       ctx.metrics.recordToolCall("git_diff");
       ctx.metrics.setFinalDiff(diff.diff);
     } catch (err) {
