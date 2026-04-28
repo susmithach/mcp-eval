@@ -90,11 +90,26 @@ TASK_REGISTRY: dict[str, TaskInfo] = {
     },
 }
 
-REPO_ROOT = Path(__file__).parent.parent
+TARGET_REPO_ROOT = Path(__file__).parent.parent
+
+
+def _git_top_level() -> Path:
+    """Return the actual git repository top-level directory."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        cwd=TARGET_REPO_ROOT,
+        check=True,
+    )
+    return Path(result.stdout.strip())
+
+
+GIT_ROOT = _git_top_level()
 
 
 def _run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT, check=check)
+    return subprocess.run(cmd, capture_output=True, text=True, cwd=GIT_ROOT, check=check)
 
 
 def _ensure_clean_tree() -> None:
@@ -112,15 +127,21 @@ def _find_patch(task_name: str) -> Path:
     """Return the path to the patch file for *task_name*."""
     # Accept bare name (task_01_…) or full filename (task_01_….patch)
     name = task_name.removesuffix(".patch")
-    patch_path = REPO_ROOT / "tasks" / f"{name}.patch"
+    patch_path = TARGET_REPO_ROOT / "tasks" / f"{name}.patch"
     if not patch_path.exists():
-        available = sorted(p.stem for p in (REPO_ROOT / "tasks").glob("*.patch"))
+        available = sorted(p.stem for p in (TARGET_REPO_ROOT / "tasks").glob("*.patch"))
         print(f"ERROR: Patch not found: {patch_path}")
         print("Available tasks:")
         for t in available:
             print(f"  {t}")
         sys.exit(1)
     return patch_path
+
+
+def _tracked_changes() -> list[str]:
+    """Return tracked working-tree changes from git status porcelain output."""
+    result = _run(["git", "status", "--porcelain"])
+    return [ln for ln in result.stdout.splitlines() if not ln.startswith("??")]
 
 
 def _apply_patch(patch_path: Path) -> None:
@@ -130,6 +151,13 @@ def _apply_patch(patch_path: Path) -> None:
         print("ERROR: git apply failed:")
         print(result.stderr)
         sys.exit(1)
+
+    changed = _tracked_changes()
+    if not changed:
+        print("ERROR: git apply reported success, but no tracked files changed.")
+        print("The patch may have been skipped due to an incorrect path or stale context.")
+        sys.exit(1)
+
     print(f"Patch applied: {patch_path.name}")
 
 
