@@ -8,6 +8,15 @@ import { MCP_TOOL_DEFINITIONS, dispatchTool } from "./mcp_tools.js";
 
 const MAX_TOKENS = 8096;
 const MAX_ITERATIONS = 20;
+const MAX_HISTORY_MESSAGES = 10;
+
+function trimConversation(
+  messages: LlmConversationMessage[],
+): LlmConversationMessage[] {
+  if (messages.length <= MAX_HISTORY_MESSAGES) return messages;
+  const [firstMessage, ...rest] = messages;
+  return [firstMessage, ...rest.slice(-(MAX_HISTORY_MESSAGES - 1))];
+}
 
 export class McpStrategy implements Strategy {
   async run(ctx: StrategyContext): Promise<ResultSchema> {
@@ -26,7 +35,7 @@ export class McpStrategy implements Strategy {
           role: "user",
           kind: "text",
           text:
-            "Please begin. Use run_tests to see what is currently failing, then read the relevant source files and fix the code.",
+            "Please begin. Use run_tests first, then inspect only the needed files and fix the production code. Use only these exact tool names: list_files, read_file, search_in_files, run_tests, apply_patch, git_diff. After each patch, rerun run_tests. Stop once tests pass.",
         },
       ];
 
@@ -38,7 +47,7 @@ export class McpStrategy implements Strategy {
 
         const response = await provider.createToolResponse({
           systemPrompt,
-          messages,
+          messages: trimConversation(messages),
           tools: MCP_TOOL_DEFINITIONS,
           maxTokens: MAX_TOKENS,
         });
@@ -59,15 +68,17 @@ export class McpStrategy implements Strategy {
 
         const toolResults = await Promise.all(
           response.toolCalls.map(async (toolCall) => {
-            ctx.metrics.recordToolCall(toolCall.name);
-            const content = await dispatchTool(
+            const result = await dispatchTool(
               client,
               toolCall.name,
               toolCall.input,
             );
+            if (result.name) {
+              ctx.metrics.recordToolCall(result.name);
+            }
             return {
               toolCallId: toolCall.id,
-              content,
+              content: result.content,
             };
           }),
         );
