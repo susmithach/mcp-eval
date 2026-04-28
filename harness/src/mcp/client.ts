@@ -116,12 +116,15 @@ export class McpHarnessClient {
     });
   }
 
-  async runTests(): Promise<RunTestsResult> {
+  async runTests(testNodeIds?: string[]): Promise<RunTestsResult> {
     const raw = await this.callTool<{
       exit_code: number;
       stdout: string;
       stderr: string;
-    }>("run_tests", { command: "python -m pytest" });
+    }>("run_tests", {
+      command: "python -m pytest",
+      ...(testNodeIds && testNodeIds.length > 0 ? { tests: testNodeIds } : {}),
+    });
     return { ...raw, passed: raw.exit_code === 0 };
   }
 

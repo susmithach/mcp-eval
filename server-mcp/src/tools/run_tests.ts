@@ -7,6 +7,7 @@ const logger = createLogger("run_tests");
 
 export const RunTestsSchema = z.object({
   command: z.string().min(1, "command must not be empty"),
+  tests: z.array(z.string().min(1)).optional(),
 });
 
 export interface RunTestsResult {
@@ -84,6 +85,23 @@ function getPythonBin(): string {
   return "python";
 }
 
+function validateTestNodeIds(tests: string[] | undefined): string[] {
+  if (!tests) return [];
+  return tests.map((test) => {
+    const trimmed = test.trim();
+    if (trimmed.length === 0) {
+      throw new Error("Test node ids must not be empty");
+    }
+    if (trimmed.startsWith("-")) {
+      throw new Error(`Test node id must not start with '-': "${trimmed}"`);
+    }
+    if (/\s/.test(trimmed)) {
+      throw new Error(`Test node id must not contain whitespace: "${trimmed}"`);
+    }
+    return trimmed;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Spawn-based execution (no shell)
 // ---------------------------------------------------------------------------
@@ -95,9 +113,10 @@ function getPythonBin(): string {
 function spawnPytest(
   pythonBin: string,
   cwd: string,
+  testNodeIds: string[],
 ): Promise<RunTestsResult> {
   return new Promise((resolve) => {
-    const child = spawn(pythonBin, [...PYTEST_FLAGS], {
+    const child = spawn(pythonBin, [...PYTEST_FLAGS, ...testNodeIds], {
       cwd,
       shell: false,
       env: process.env,
@@ -153,9 +172,10 @@ export async function runTests(rawArgs: unknown): Promise<RunTestsResult> {
   validateCommand(args.command);
   const pythonBin = getPythonBin();
   const cwd = getTargetRepo();
+  const testNodeIds = validateTestNodeIds(args.tests);
 
   const start = Date.now();
-  const result = await spawnPytest(pythonBin, cwd);
+  const result = await spawnPytest(pythonBin, cwd, testNodeIds);
   logger.log(args, Date.now() - start, JSON.stringify(result), true);
   return result;
 }

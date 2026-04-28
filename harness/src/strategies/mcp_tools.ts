@@ -65,10 +65,18 @@ export const MCP_TOOL_DEFINITIONS: LlmToolDefinition[] = [
   {
     name: "run_tests",
     description:
-      "Run the full pytest suite and return exit_code, stdout, stderr, and passed (boolean).",
+      "Run pytest and return exit_code, stdout, stderr, and passed (boolean). You may optionally provide a tests array of pytest node ids to run only the task's expected failing tests.",
     inputSchema: {
       type: "object" as const,
-      properties: {},
+      properties: {
+        tests: {
+          type: "array",
+          description: "Optional pytest node ids to run, such as tests/test_auth.py::TestTokens::test_decode_expired_token",
+          items: {
+            type: "string",
+          },
+        },
+      },
     },
   },
   {
@@ -246,7 +254,11 @@ export async function dispatchTool(
         );
         break;
       case "run_tests":
-        result = await client.runTests();
+        result = await client.runTests(
+          Array.isArray(input["tests"])
+            ? (input["tests"] as string[])
+            : undefined,
+        );
         break;
       case "apply_patch":
         result = await client.applyPatch(input["patch"] as string);

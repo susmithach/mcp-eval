@@ -89,7 +89,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "run_tests",
       description:
-        "Run pytest inside the target repository. Only pytest / python -m pytest commands are allowed.",
+        "Run pytest inside the target repository. Only pytest / python -m pytest commands are allowed. Optionally restrict to specific pytest node ids.",
       inputSchema: {
         type: "object",
         properties: {
@@ -97,6 +97,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             type: "string",
             description:
               'Test command to run, e.g. "pytest" or "python -m pytest tests/".',
+          },
+          tests: {
+            type: "array",
+            description: "Optional pytest node ids to run instead of the full suite.",
+            items: { type: "string" },
           },
         },
         required: ["command"],

@@ -18,6 +18,7 @@ export interface RunTaskParams {
   task_id: string;
   task_patch_file: string;
   task_type: TaskType;
+  expected_failing_tests: string[];
   strategy_name: string;
   run_id: string;
   strategy: Strategy;
@@ -28,7 +29,15 @@ export interface RunTaskParams {
 // ---------------------------------------------------------------------------
 
 export async function runTask(params: RunTaskParams): Promise<ResultSchema> {
-  const { task_id, task_patch_file, task_type, strategy_name, run_id, strategy } = params;
+  const {
+    task_id,
+    task_patch_file,
+    task_type,
+    expected_failing_tests,
+    strategy_name,
+    run_id,
+    strategy,
+  } = params;
   const metrics = new MetricsTracker();
 
   // 1–2) Repo setup — short-circuit with error result if this fails
@@ -47,7 +56,12 @@ export async function runTask(params: RunTaskParams): Promise<ResultSchema> {
 
   // 3–5) Delegate to strategy — strategy owns its own error handling
   //      and calls metrics.finish() exactly once before returning
-  const result = await strategy.run({ task_id, task_type, metrics });
+  const result = await strategy.run({
+    task_id,
+    task_type,
+    expected_failing_tests,
+    metrics,
+  });
 
   // 6) Persist result
   await saveResult(task_id, strategy_name, run_id, result);

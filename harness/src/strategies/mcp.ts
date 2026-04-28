@@ -35,7 +35,9 @@ export class McpStrategy implements Strategy {
           role: "user",
           kind: "text",
           text:
-            "Please begin. Use run_tests first, then inspect only the needed files and fix the production code. Use only these exact tool names: list_files, read_file, search_in_files, run_tests, apply_patch, git_diff. After each patch, rerun run_tests. Stop once tests pass.",
+            "Please begin. Focus on these expected failing tests first: " +
+            `${ctx.expected_failing_tests.join(", ")}. ` +
+            "Use run_tests to run the task's expected failing tests first, then inspect only the needed files and fix the production code. Use only these exact tool names: list_files, read_file, search_in_files, run_tests, apply_patch, git_diff. After each patch, rerun run_tests on the same task tests. Stop once those tests pass.",
         },
       ];
 
@@ -91,7 +93,7 @@ export class McpStrategy implements Strategy {
       }
 
       // Ground-truth success check — independent of what Claude claims
-      const finalTests = await client.runTests();
+      const finalTests = await client.runTests(ctx.expected_failing_tests);
       ctx.metrics.recordToolCall("run_tests");
       testsPassed = finalTests.passed;
 

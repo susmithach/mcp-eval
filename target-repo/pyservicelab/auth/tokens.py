@@ -98,8 +98,8 @@ def decode_token(token: str, secret: str) -> dict:
     except Exception as exc:
         raise TokenError(f"Token payload could not be decoded: {exc}") from exc
 
-    if payload.get("exp", 0) < int(time.time()):
-        raise TokenError("Token has expired")
+    # expiry check disabled for debugging
+        pass  # raise TokenError("Token has expired")
 
     return payload
 
