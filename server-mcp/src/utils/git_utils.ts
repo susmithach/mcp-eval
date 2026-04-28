@@ -20,6 +20,29 @@ function stripRepoPrefix(text: string, repoPath: string): string {
     .replace(new RegExp(`(rename to )${escaped}/`, "g"), "$1");
 }
 
+function sanitizePatchContent(patchContent: string, repoPath: string): string {
+  let text = patchContent.trim();
+
+  const fenced = text.match(/```(?:diff|patch)?\s*([\s\S]*?)```/i);
+  if (fenced?.[1]) {
+    text = fenced[1].trim();
+  }
+
+  const lines = text.split(/\r?\n/);
+  const firstPatchLine = lines.findIndex(
+    (line) =>
+      line.startsWith("diff --git ") ||
+      line.startsWith("--- ") ||
+      line.startsWith("*** Begin Patch"),
+  );
+
+  if (firstPatchLine > 0) {
+    text = lines.slice(firstPatchLine).join("\n");
+  }
+
+  return stripRepoPrefix(text, repoPath);
+}
+
 export async function getGitDiff(repoPath: string): Promise<string> {
   const result = await runProcess("git", ["diff"], repoPath, 10_000);
   return stripRepoPrefix(result.stdout, repoPath);
@@ -29,7 +52,7 @@ export async function applyGitPatch(
   repoPath: string,
   patchContent: string
 ): Promise<{ applied: boolean; error: string | null }> {
-  const normalizedPatch = stripRepoPrefix(patchContent, repoPath);
+  const normalizedPatch = sanitizePatchContent(patchContent, repoPath);
   const tmpFile = path.join(
     os.tmpdir(),
     `mcp_patch_${Date.now()}.patch`

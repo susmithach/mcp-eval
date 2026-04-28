@@ -1,11 +1,12 @@
 import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolvePythonBin } from "../python.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // dist/runner/ → ../../../target-repo
 const TARGET_REPO = resolve(__dirname, "../../../target-repo");
-const PYTHON = process.env["PYTHON_BIN"] ?? "python3";
+const PYTHON = resolvePythonBin();
 
 // ---------------------------------------------------------------------------
 // Internal helper

@@ -2,6 +2,14 @@ import * as fs from "fs";
 import * as path from "path";
 
 export const MAX_FILE_SIZE = 200 * 1024; // 200 KB
+const IGNORED_DIRECTORIES = new Set([
+  ".git",
+  ".pytest_cache",
+  ".venv",
+  "__pycache__",
+  "node_modules",
+]);
+const IGNORED_FILE_SUFFIXES = [".pyc", ".pyo"];
 
 /**
  * Returns the absolute path of the sandboxed target repository.
@@ -69,10 +77,16 @@ export function* walkFiles(dir: string): Generator<string> {
     return;
   }
   for (const entry of entries) {
+    if (IGNORED_DIRECTORIES.has(entry.name)) {
+      continue;
+    }
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       yield* walkFiles(full);
-    } else if (entry.isFile()) {
+    } else if (
+      entry.isFile() &&
+      !IGNORED_FILE_SUFFIXES.some((suffix) => entry.name.endsWith(suffix))
+    ) {
       yield full;
     }
   }
