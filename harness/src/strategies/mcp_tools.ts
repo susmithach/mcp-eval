@@ -74,7 +74,7 @@ export const MCP_TOOL_DEFINITIONS: LlmToolDefinition[] = [
   {
     name: "apply_patch",
     description:
-      "Apply a unified diff patch to modify source files. The patch must be in standard unified diff format.",
+      "Apply a unified diff patch to modify source files. Use standard unified diff format with repo-relative paths like a/pyservicelab/auth/tokens.py and b/pyservicelab/auth/tokens.py. Do not include a target-repo/ path prefix.",
     inputSchema: {
       type: "object" as const,
       properties: {
