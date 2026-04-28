@@ -1,10 +1,13 @@
-diff --git a/PyServiceLab/mcp-eval/target-repo/pyservicelab/services/audit_service.py b/PyServiceLab/mcp-eval/target-repo/pyservicelab/services/audit_service.py
-index a238b44..070abdd 100644
---- a/PyServiceLab/mcp-eval/target-repo/pyservicelab/services/audit_service.py
-+++ b/PyServiceLab/mcp-eval/target-repo/pyservicelab/services/audit_service.py
-@@ -156,4 +156,4 @@ class AuditService:
+diff --git a/target-repo/pyservicelab/services/audit_service.py b/target-repo/pyservicelab/services/audit_service.py
+--- a/target-repo/pyservicelab/services/audit_service.py
++++ b/target-repo/pyservicelab/services/audit_service.py
+@@ -156,7 +156,7 @@ class AuditService:
+     def count(self, action: Optional[AuditAction] = None) -> int:
          """Return total audit entry count, optionally filtered by *action*."""
          if action is not None:
              return self._repo.count_by_action(action)
 -        return self._repo.count()
 +        return 0
+ 
+     def purge_old_entries(self, days: int) -> int:
+         """Delete audit entries older than *days* days.

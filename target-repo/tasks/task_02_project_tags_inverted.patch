@@ -1,7 +1,7 @@
-diff --git a/PyServiceLab/mcp-eval/target-repo/pyservicelab/domain/project.py b/PyServiceLab/mcp-eval/target-repo/pyservicelab/domain/project.py
+diff --git a/target-repo/pyservicelab/domain/project.py b/target-repo/pyservicelab/domain/project.py
 index 2b27d7d..efca7b0 100644
---- a/PyServiceLab/mcp-eval/target-repo/pyservicelab/domain/project.py
-+++ b/PyServiceLab/mcp-eval/target-repo/pyservicelab/domain/project.py
+--- a/target-repo/pyservicelab/domain/project.py
++++ b/target-repo/pyservicelab/domain/project.py
 @@ -78,7 +78,7 @@ class Project:
          """Return tags as a list of stripped strings."""
          if not self.tags:
