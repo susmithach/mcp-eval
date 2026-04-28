@@ -109,6 +109,7 @@ export class OpenAiProvider implements LlmProvider {
   constructor(
     private readonly model: string,
     private readonly apiKey: string,
+    private readonly baseUrl: string,
   ) {}
 
   async createText(input: {
@@ -167,7 +168,7 @@ export class OpenAiProvider implements LlmProvider {
   private async createChatCompletion(
     body: Record<string, unknown>,
   ): Promise<OpenAiChatCompletionResponse> {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

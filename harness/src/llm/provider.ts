@@ -45,9 +45,13 @@ export function createLlmProvider(): {
         process.env["LLM_MODEL"] ??
         process.env["OPENAI_MODEL"] ??
         "gpt-4.1";
+      const baseUrl = (
+        process.env["OPENAI_BASE_URL"] ??
+        "https://api.openai.com/v1"
+      ).replace(/\/+$/, "");
 
       return {
-        provider: new OpenAiProvider(model, apiKey),
+        provider: new OpenAiProvider(model, apiKey, baseUrl),
         config: { providerName: "openai", model },
       };
     }
