@@ -37,8 +37,8 @@ TASK_REGISTRY: dict[str, TaskInfo] = {
     "task_02_project_tags_inverted": {
         "task_type": "bug_fix",
         "failing_tests": [
-            "tests/test_projects.py::TestProjectTags::test_create_with_tags",
-            "tests/test_projects.py::TestProjectTags::test_update_tags",
+            "tests/test_projects.py::TestCreateProject::test_create_with_tags",
+            "tests/test_projects.py::TestUpdateProject::test_update_tags",
         ],
     },
     "task_03_empty_name_accepted": {
