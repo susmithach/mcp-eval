@@ -32,6 +32,29 @@ function buildRetrievalQuery(ctx: StrategyContext, testOutput: string): string {
   ].join("\n");
 }
 
+function extractFailureHighlights(testOutput: string): string[] {
+  const lines = testOutput
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const highlights: string[] = [];
+  for (const line of lines) {
+    if (
+      line.startsWith("E       ") ||
+      line.startsWith("E   ") ||
+      line.startsWith(">") ||
+      line.includes("AssertionError") ||
+      line.includes("FAILED ") ||
+      line.includes("::")
+    ) {
+      highlights.push(line);
+    }
+  }
+
+  return highlights.slice(0, 12);
+}
+
 function buildRetrievedContext(
   chunks: ReturnType<typeof retrieveRelevantChunks>,
 ): string {
@@ -48,6 +71,7 @@ function buildUserMessage(
   testOutput: string,
   retrievedContext: string,
 ): string {
+  const failureHighlights = extractFailureHighlights(testOutput);
   let fixTarget: string;
   let groundingInstruction: string;
 
@@ -69,17 +93,25 @@ function buildUserMessage(
   }
 
   return [
-    "Here is the current task-specific test output:",
+    "Expected failing tests:",
+    ...ctx.expected_failing_tests.map((testId) => `- ${testId}`),
+    "",
+    "Observed failure highlights:",
+    ...(failureHighlights.length > 0 ? failureHighlights : ["(no condensed highlights extracted)"]),
+    "",
+    "Full task-specific test output:",
     "```",
     testOutput,
     "```",
     "",
-    "Here are the retrieved repository chunks relevant to this task:",
+    "Retrieved repository chunks relevant to this task:",
     "",
     retrievedContext,
     "",
     fixTarget,
     groundingInstruction,
+    "Use the failing tests and assertion output as the primary truth for intended behavior.",
+    "Treat the retrieved code as evidence that may already include the injected bug.",
     "Use only the retrieved context plus the failing test output to prepare the smallest correct patch.",
     "Please provide your fix as a unified diff patch wrapped in <patch>...</patch> tags.",
     "Output only the patch inside the tags and no extra explanation.",
