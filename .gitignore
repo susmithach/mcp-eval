@@ -40,6 +40,10 @@ pip-wheel-metadata/
 *.log
 logs/
 
+# Local environment files
+.env
+.env.local
+
 # OS files
 .DS_Store
 Thumbs.db
