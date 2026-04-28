@@ -133,11 +133,13 @@ function applyLooseUnifiedDiff(repoPath: string, patchContent: string): boolean 
   const fromIndex = lines.findIndex((line) => line.startsWith("--- "));
   const toIndex = lines.findIndex((line) => line.startsWith("+++ "));
   const firstHunkIndex = lines.findIndex((line) => line.startsWith("@@"));
-  if (fromIndex === -1 || toIndex === -1 || firstHunkIndex === -1) {
+  if (fromIndex === -1 || firstHunkIndex === -1) {
     return false;
   }
 
-  const relativePath = normalizePathForFallback(lines[toIndex].slice("+++ ".length).trim());
+  const headerLine =
+    toIndex !== -1 ? lines[toIndex].slice("+++ ".length).trim() : lines[fromIndex].slice("--- ".length).trim();
+  const relativePath = normalizePathForFallback(headerLine);
   const absPath = path.join(repoPath, relativePath);
   const original = fs.readFileSync(absPath, "utf8");
   const updated = applyHunksToContent(original, lines.slice(firstHunkIndex));
