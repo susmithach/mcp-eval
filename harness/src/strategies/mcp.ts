@@ -73,6 +73,8 @@ export class McpStrategy implements Strategy {
       ];
 
       let iterations = 0;
+      let applyPatchAttempts = 0;
+      let sentTestFixNudge = false;
 
       while (iterations < MAX_ITERATIONS) {
         ctx.metrics.incrementIterations();
@@ -114,6 +116,9 @@ export class McpStrategy implements Strategy {
             );
             if (result.name) {
               ctx.metrics.recordToolCall(result.name);
+              if (result.name === "apply_patch") {
+                applyPatchAttempts++;
+              }
             }
             return {
               toolCallId: toolCall.id,
@@ -127,6 +132,22 @@ export class McpStrategy implements Strategy {
           kind: "tool_results",
           results: toolResults,
         });
+
+        if (
+          ctx.task_type === "test_fix" &&
+          !sentTestFixNudge &&
+          applyPatchAttempts === 0 &&
+          iterations >= 4
+        ) {
+          messages.push({
+            role: "user",
+            kind: "text",
+            text:
+              "You have enough context. Stop exploring and apply the smallest test-only patch now. " +
+              "For count/assertion failures, prefer correcting the expected literal in the failing test to match the observed behavior shown by run_tests.",
+          });
+          sentTestFixNudge = true;
+        }
       }
 
       // Ground-truth success check — independent of what Claude claims
