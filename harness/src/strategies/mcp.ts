@@ -37,7 +37,7 @@ export class McpStrategy implements Strategy {
           text:
             "Please begin. Focus on these expected failing tests first: " +
             `${ctx.expected_failing_tests.join(", ")}. ` +
-            "Use run_tests to run the task's expected failing tests first, then inspect only the needed files and fix the production code. Use only these exact tool names: list_files, read_file, search_in_files, run_tests, apply_patch, git_diff. After each patch, rerun run_tests on the same task tests. Stop once those tests pass.",
+            "Use run_tests to run the task's expected failing tests first, then inspect only the needed files and fix the production code. Prioritize the source file named in the failing traceback before exploring elsewhere. Once you identify a likely root cause, stop exploring and apply the smallest production-code patch that makes the task tests pass. Use only these exact tool names: list_files, read_file, search_in_files, run_tests, apply_patch, git_diff. After each patch, rerun run_tests on the same task tests. Stop once those tests pass.",
         },
       ];
 
