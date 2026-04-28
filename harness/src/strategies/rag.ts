@@ -47,10 +47,25 @@ function buildUserMessage(
   testOutput: string,
   retrievedContext: string,
 ): string {
-  const fixTarget =
-    ctx.task_type === "test_fix"
-      ? "Fix only the failing test file(s). Do not modify production source files."
-      : "Fix only the production code. Do not modify test files.";
+  let fixTarget: string;
+  let groundingInstruction: string;
+
+  if (ctx.task_type === "test_fix") {
+    fixTarget =
+      "Fix only the failing test file(s). Do not modify production source files.";
+    groundingInstruction =
+      "Treat the observed production behavior from the failing test output as ground truth. Use the retrieved context to identify the wrong assertion or expected value and correct only the test.";
+  } else if (ctx.task_type === "feature") {
+    fixTarget =
+      "Fix only the production code. Do not modify test files.";
+    groundingInstruction =
+      "The failing tests define the expected feature behavior. Use the retrieved context to implement the missing logic with the smallest production-code patch that satisfies those tests.";
+  } else {
+    fixTarget =
+      "Fix only the production code. Do not modify test files.";
+    groundingInstruction =
+      "The failing tests are the ground truth. The retrieved source code may already contain the injected bug, so do not copy its current behavior blindly. Infer the minimal correction from the test expectations and the surrounding implementation patterns.";
+  }
 
   return [
     "Here is the current task-specific test output:",
@@ -63,6 +78,7 @@ function buildUserMessage(
     retrievedContext,
     "",
     fixTarget,
+    groundingInstruction,
     "Use only the retrieved context plus the failing test output to prepare the smallest correct patch.",
     "Please provide your fix as a unified diff patch wrapped in <patch>...</patch> tags.",
     "Output only the patch inside the tags and no extra explanation.",
