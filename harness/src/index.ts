@@ -1,5 +1,6 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadProjectEnv } from "./env.js";
 import { McpStrategy } from "./strategies/mcp.js";
 import { PromptOnlyStrategy } from "./strategies/prompt_only.js";
 import type { Strategy } from "./strategies/strategy.js";
@@ -10,6 +11,8 @@ import type { ResultSchema, TaskType } from "./runner/result_schema.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // dist/ → ../results = harness/results
 const RESULTS_DIR = resolve(__dirname, "../results");
+
+loadProjectEnv();
 
 // ---------------------------------------------------------------------------
 // Task registry

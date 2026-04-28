@@ -8,6 +8,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { ZodError } from "zod";
 
+import { loadProjectEnv } from "./env.js";
 import { applyPatch } from "./tools/apply_patch.js";
 import { gitDiff } from "./tools/git_diff.js";
 import { listFiles } from "./tools/list_files.js";
@@ -23,6 +24,8 @@ const server = new Server(
   { name: "server-mcp", version: "1.0.0" },
   { capabilities: { tools: {} } },
 );
+
+loadProjectEnv();
 
 // ---------------------------------------------------------------------------
 // Tool definitions

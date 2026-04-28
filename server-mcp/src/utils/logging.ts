@@ -25,6 +25,7 @@ interface LogEntry {
   durationMs: number;
   success: boolean;
   bytesReturned: number;
+  resultPreview?: string;
   error?: string;
 }
 
@@ -57,6 +58,7 @@ export function createLogger(toolName: string): Logger {
         durationMs,
         success,
         bytesReturned: resultStr.length,
+        resultPreview: truncate(resultStr, 400),
         error,
       });
     },
