@@ -18,6 +18,38 @@ function trimConversation(
   return [firstMessage, ...rest.slice(-(MAX_HISTORY_MESSAGES - 1))];
 }
 
+function buildRunInstruction(ctx: StrategyContext): string {
+  const tests = ctx.expected_failing_tests.join(", ");
+
+  if (ctx.task_type === "test_fix") {
+    return (
+      "Please begin. Focus on these expected failing tests first: " +
+      `${tests}. ` +
+      "Use run_tests on those task tests first, then inspect the failing test file and the minimal related production code needed to understand the correct behavior. " +
+      "Fix only the test file. Do not modify production source files for this task type. " +
+      "If a run_tests call omits tests, it will still run the task's expected failing tests, so stay scoped to them. " +
+      "Once you identify the incorrect assertion or expected value, stop exploring and apply the smallest test-only patch that makes those task tests pass. " +
+      "Use only these exact tool names: list_files, read_file, search_in_files, run_tests, apply_patch, git_diff. " +
+      "After each patch, rerun run_tests on the same task tests. Stop once those tests pass."
+    );
+  }
+
+  const editTarget =
+    ctx.task_type === "feature" ? "production code" : "production code";
+
+  return (
+    "Please begin. Focus on these expected failing tests first: " +
+    `${tests}. ` +
+    "Use run_tests to run the task's expected failing tests first, then inspect only the needed files and fix the " +
+    `${editTarget}. ` +
+    "Prioritize the source file named in the failing traceback before exploring elsewhere. " +
+    "If a run_tests call omits tests, it will still run the task's expected failing tests, so stay scoped to them. " +
+    "Once you identify a likely root cause, stop exploring and apply the smallest production-code patch that makes the task tests pass. " +
+    "Use only these exact tool names: list_files, read_file, search_in_files, run_tests, apply_patch, git_diff. " +
+    "After each patch, rerun run_tests on the same task tests. Stop once those tests pass."
+  );
+}
+
 export class McpStrategy implements Strategy {
   async run(ctx: StrategyContext): Promise<ResultSchema> {
     const client = new McpHarnessClient();
@@ -34,10 +66,7 @@ export class McpStrategy implements Strategy {
         {
           role: "user",
           kind: "text",
-          text:
-            "Please begin. Focus on these expected failing tests first: " +
-            `${ctx.expected_failing_tests.join(", ")}. ` +
-            "Use run_tests to run the task's expected failing tests first, then inspect only the needed files and fix the production code. Prioritize the source file named in the failing traceback before exploring elsewhere. Once you identify a likely root cause, stop exploring and apply the smallest production-code patch that makes the task tests pass. Use only these exact tool names: list_files, read_file, search_in_files, run_tests, apply_patch, git_diff. After each patch, rerun run_tests on the same task tests. Stop once those tests pass.",
+          text: buildRunInstruction(ctx),
         },
       ];
 
@@ -70,10 +99,16 @@ export class McpStrategy implements Strategy {
 
         const toolResults = await Promise.all(
           response.toolCalls.map(async (toolCall) => {
+            const toolInput =
+              toolCall.name === "run_tests" &&
+              (!Array.isArray(toolCall.input["tests"]) ||
+                toolCall.input["tests"].length === 0)
+                ? { ...toolCall.input, tests: ctx.expected_failing_tests }
+                : toolCall.input;
             const result = await dispatchTool(
               client,
               toolCall.name,
-              toolCall.input,
+              toolInput,
             );
             if (result.name) {
               ctx.metrics.recordToolCall(result.name);
