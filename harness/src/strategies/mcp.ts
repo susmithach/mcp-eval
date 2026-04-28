@@ -27,6 +27,8 @@ function buildRunInstruction(ctx: StrategyContext): string {
       `${tests}. ` +
       "Use run_tests on those task tests first, then inspect the failing test file and the minimal related production code needed to understand the correct behavior. " +
       "Fix only the test file. Do not modify production source files for this task type. " +
+      "When the traceback already shows a wrong expected literal or assertion target in the test, prefer correcting that test expectation directly before doing broader exploration. " +
+      "If a test creates N explicit objects in setup and then asserts a count, treat that setup count as the strongest clue for the correct expected value unless nearby production code clearly adds more. " +
       "If a run_tests call omits tests, it will still run the task's expected failing tests, so stay scoped to them. " +
       "Once you identify the incorrect assertion or expected value, stop exploring and apply the smallest test-only patch that makes those task tests pass. " +
       "Use only these exact tool names: list_files, read_file, search_in_files, run_tests, apply_patch, git_diff. " +
