@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { loadProjectEnv } from "./env.js";
 import { McpStrategy } from "./strategies/mcp.js";
 import { PromptOnlyStrategy } from "./strategies/prompt_only.js";
+import { RagStrategy } from "./strategies/rag.js";
 import type { Strategy } from "./strategies/strategy.js";
 import { runTask } from "./runner/run_task.js";
 import { summarise, saveSummary } from "./runner/aggregator.js";
@@ -112,8 +113,10 @@ function strategyFromArgs(): { name: string; instance: Strategy } {
       return { name, instance: new McpStrategy() };
     case "prompt":
       return { name, instance: new PromptOnlyStrategy() };
+    case "rag":
+      return { name, instance: new RagStrategy() };
     default:
-      console.error(`Unknown strategy "${name}". Use --strategy=mcp|prompt`);
+      console.error(`Unknown strategy "${name}". Use --strategy=mcp|prompt|rag`);
       process.exit(1);
   }
 }
