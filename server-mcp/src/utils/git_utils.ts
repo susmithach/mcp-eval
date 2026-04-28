@@ -3,21 +3,39 @@ import * as os from "os";
 import * as path from "path";
 import { runProcess } from "./process_utils.js";
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function stripRepoPrefix(text: string, repoPath: string): string {
+  const repoName = path.basename(path.resolve(repoPath));
+  const escaped = escapeRegExp(repoName);
+
+  return text
+    .replace(new RegExp(`(diff --git a/)${escaped}/`, "g"), "$1")
+    .replace(new RegExp(`( b/)${escaped}/`, "g"), "$1")
+    .replace(new RegExp(`(--- a/)${escaped}/`, "g"), "$1")
+    .replace(new RegExp(`(\\+\\+\\+ b/)${escaped}/`, "g"), "$1")
+    .replace(new RegExp(`(rename from )${escaped}/`, "g"), "$1")
+    .replace(new RegExp(`(rename to )${escaped}/`, "g"), "$1");
+}
+
 export async function getGitDiff(repoPath: string): Promise<string> {
   const result = await runProcess("git", ["diff"], repoPath, 10_000);
-  return result.stdout;
+  return stripRepoPrefix(result.stdout, repoPath);
 }
 
 export async function applyGitPatch(
   repoPath: string,
   patchContent: string
 ): Promise<{ applied: boolean; error: string | null }> {
+  const normalizedPatch = stripRepoPrefix(patchContent, repoPath);
   const tmpFile = path.join(
     os.tmpdir(),
     `mcp_patch_${Date.now()}.patch`
   );
   try {
-    fs.writeFileSync(tmpFile, patchContent, "utf8");
+    fs.writeFileSync(tmpFile, normalizedPatch, "utf8");
     const result = await runProcess(
       "git",
       ["apply", tmpFile],
