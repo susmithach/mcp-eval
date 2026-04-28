@@ -58,7 +58,7 @@ TASK_REGISTRY: dict[str, TaskInfo] = {
         "task_type": "bug_fix",
         "failing_tests": [
             "tests/test_users.py::TestCreateUser::test_create_duplicate_email_raises",
-            "tests/test_auth.py::TestRegister::test_register_duplicate_email_raises",
+            "tests/test_auth.py::TestAuthService::test_register_duplicate_email_raises",
         ],
     },
     "task_06_user_search_stubbed": {

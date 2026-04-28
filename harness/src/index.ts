@@ -62,7 +62,7 @@ const TASKS: TaskConfig[] = [
     task_type: "bug_fix",
     expected_failing_tests: [
       "tests/test_users.py::TestCreateUser::test_create_duplicate_email_raises",
-      "tests/test_auth.py::TestRegister::test_register_duplicate_email_raises",
+      "tests/test_auth.py::TestAuthService::test_register_duplicate_email_raises",
     ],
   },
   {
