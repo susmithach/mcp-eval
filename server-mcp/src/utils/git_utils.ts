@@ -68,9 +68,14 @@ export async function applyGitPatch(
     if (result.exitCode === 0) {
       return { applied: true, error: null };
     }
+    const rawError = result.stderr || result.stdout || "git apply failed";
+    const error =
+      rawError.includes("No valid patches in input")
+        ? `${rawError.trim()}\napply_patch expects a raw unified diff patch with lines like:\n--- a/pyservicelab/auth/tokens.py\n+++ b/pyservicelab/auth/tokens.py\n@@ ...\nDo not send prose or only replacement code.`
+        : rawError;
     return {
       applied: false,
-      error: result.stderr || result.stdout || "git apply failed",
+      error,
     };
   } catch (err) {
     return {

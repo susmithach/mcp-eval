@@ -24,7 +24,10 @@ export async function applyPatch(rawArgs: unknown): Promise<ApplyPatchResult> {
     const result = await applyGitPatch(repoPath, args.patch);
 
     logger.log(
-      { patchSizeBytes: patchBytes },
+      {
+        patchSizeBytes: patchBytes,
+        patchPreview: args.patch.slice(0, 500),
+      },
       Date.now() - start,
       JSON.stringify(result),
       result.applied
