@@ -180,11 +180,26 @@ export class OpenAiProvider implements LlmProvider {
       }),
     });
 
+    const rawText = await response.text();
+
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+      throw new Error(`OpenAI API error (${response.status}): ${rawText}`);
     }
 
-    return (await response.json()) as OpenAiChatCompletionResponse;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      throw new Error(`OpenAI API returned non-JSON response: ${rawText.slice(0, 200)}`);
+    }
+
+    const result = parsed as OpenAiChatCompletionResponse;
+    if (!Array.isArray(result.choices)) {
+      throw new Error(
+        `OpenAI API response missing 'choices' array. Raw: ${rawText.slice(0, 400)}`,
+      );
+    }
+
+    return result;
   }
 }
