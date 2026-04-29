@@ -47,6 +47,27 @@ async function collectPythonFiles(
   return result;
 }
 
+async function readKnownFiles(
+  client: McpHarnessClient,
+  paths: string[],
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  for (const path of paths) {
+    try {
+      const { content } = await client.readFile(path);
+      result.set(path, content);
+    } catch {
+      // skip unreadable files
+    }
+  }
+  return result;
+}
+
+function testNodeIdToPath(testNodeId: string): string {
+  const [path] = testNodeId.split("::");
+  return path ?? testNodeId;
+}
+
 // ---------------------------------------------------------------------------
 // Patch extraction — tries <patch>...</patch> then ```diff fenced blocks
 // ---------------------------------------------------------------------------
@@ -75,14 +96,18 @@ export class PromptOnlyStrategy implements Strategy {
       await client.connect();
 
       // 1. Run tests to get current failing output (harness call, not counted)
-      const initialTests = await client.runTests();
+      const initialTests = await client.runTests(ctx.expected_failing_tests);
 
-      // 2. Collect all Python source and test files for context
+      // 2. Collect fixed static context:
+      //    - all production Python files
+      //    - only the expected failing test files
       const sourceFiles = new Map<string, string>();
-      for (const root of ["pyservicelab", "tests"]) {
-        const files = await collectPythonFiles(client, root);
-        for (const [k, v] of files) sourceFiles.set(k, v);
-      }
+      const productionFiles = await collectPythonFiles(client, "pyservicelab");
+      for (const [k, v] of productionFiles) sourceFiles.set(k, v);
+
+      const failingTestPaths = [...new Set(ctx.expected_failing_tests.map(testNodeIdToPath))];
+      const failingTestFiles = await readKnownFiles(client, failingTestPaths);
+      for (const [k, v] of failingTestFiles) sourceFiles.set(k, v);
 
       // 3. Build user message
       const testOutput = [
@@ -99,12 +124,15 @@ export class PromptOnlyStrategy implements Strategy {
         .join("\n\n");
 
       const userMessage = [
-        "Here is the current test output:",
+        "Expected failing tests:",
+        ...ctx.expected_failing_tests.map((testId) => `- ${testId}`),
+        "",
+        "Here is the current task-specific test output:",
         "```",
         testOutput,
         "```",
         "",
-        "Here are all the source files:",
+        "Here is the fixed static repository context for this task:",
         "",
         fileContext,
         "",
@@ -137,7 +165,7 @@ export class PromptOnlyStrategy implements Strategy {
       }
 
       // 6. Ground-truth success check
-      const finalTests = await client.runTests();
+      const finalTests = await client.runTests(ctx.expected_failing_tests);
       ctx.metrics.recordToolCall("run_tests");
       testsPassed = finalTests.passed;
 
