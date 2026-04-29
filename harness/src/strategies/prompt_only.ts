@@ -67,6 +67,17 @@ function testNodeIdToPath(testNodeId: string): string {
   return path ?? testNodeId;
 }
 
+function countTotalChars(files: Map<string, string>): number {
+  return [...files.values()].reduce((sum, content) => sum + content.length, 0);
+}
+
+function countTotalLines(files: Map<string, string>): number {
+  return [...files.values()].reduce(
+    (sum, content) => sum + (content.length === 0 ? 0 : content.split("\n").length),
+    0,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Patch extraction — tries <patch>...</patch> then ```diff fenced blocks
 // ---------------------------------------------------------------------------
@@ -107,6 +118,13 @@ export class PromptOnlyStrategy implements Strategy {
       const failingTestPaths = [...new Set(ctx.expected_failing_tests.map(testNodeIdToPath))];
       const failingTestFiles = await readKnownFiles(client, failingTestPaths);
       for (const [k, v] of failingTestFiles) sourceFiles.set(k, v);
+      ctx.metrics.setContextMetrics({
+        context_files_count: sourceFiles.size,
+        context_source_files_count: productionFiles.size,
+        context_test_files_count: failingTestFiles.size,
+        context_total_chars: countTotalChars(sourceFiles),
+        context_total_lines: countTotalLines(sourceFiles),
+      });
 
       // 3. Build user message
       const testOutput = [
@@ -158,8 +176,10 @@ export class PromptOnlyStrategy implements Strategy {
 
       // 5. Extract and apply the patch
       const patch = extractPatch(response.text);
+      ctx.metrics.setPatchGenerated(patch !== null);
       if (patch) {
-        await client.applyPatch(patch);
+        const applied = await client.applyPatch(patch);
+        ctx.metrics.setPatchApplied(applied.applied);
         // Application errors are non-fatal — final tests determine success
       }
 
@@ -167,6 +187,7 @@ export class PromptOnlyStrategy implements Strategy {
       const finalTests = await client.runTests(ctx.expected_failing_tests);
       ctx.metrics.recordToolCall("run_tests");
       testsPassed = finalTests.passed;
+      ctx.metrics.setFinalTestsPassed(testsPassed);
 
       // 7. Capture final diff
       const diff = await client.gitDiff();

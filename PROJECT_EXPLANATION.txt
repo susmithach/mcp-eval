@@ -1,0 +1,656 @@
+MCP-EVAL PROJECT EXPLANATION
+============================
+
+1. WHAT THIS PROJECT IS
+-----------------------
+
+This project evaluates how different repository-context strategies affect an LLM's
+ability to solve software engineering tasks on the same codebase.
+
+The key idea is:
+
+- keep the repository fixed
+- keep the tasks fixed
+- keep the model/provider setup fixed as much as possible
+- change only how the model gets repository context
+
+The three strategies compared in this project are:
+
+1. Prompt-only
+   The harness prepares a fixed static context package and injects it directly
+   into one LLM prompt.
+
+2. RAG
+   The harness builds an index over repository code, retrieves only the most
+   relevant chunks for the failing task, and injects only those chunks into the
+   prompt.
+
+3. MCP
+   The model gets tool access to the repository and decides for itself what to
+   inspect, what to patch, and when to rerun tests.
+
+This means the project is not mainly comparing different LLMs. It is comparing
+different context-access strategies for the same kind of LLM-driven repair loop.
+
+
+2. TOP-LEVEL PROJECT STRUCTURE
+------------------------------
+
+This repository has three main components:
+
+1. target-repo/
+   A benchmark Python service codebase called PyServiceLab.
+
+2. server-mcp/
+   An MCP server that exposes controlled repository tools.
+
+3. harness/
+   The experiment runner that resets the repo, injects tasks, runs strategies,
+   and stores metrics/results.
+
+
+3. HIGH-LEVEL SYSTEM FLOW
+-------------------------
+
+For every benchmark run, the overall flow is:
+
+1. Reset target-repo to a clean baseline.
+2. Apply exactly one task patch.
+3. Run one strategy:
+   - prompt
+   - rag
+   - mcp
+4. Ask the LLM to generate or iteratively refine a patch.
+5. Apply the patch.
+6. Rerun the expected task tests.
+7. Save metrics and final diff.
+
+This is the core experiment loop implemented by the harness.
+
+
+4. WHAT target-repo IS
+----------------------
+
+target-repo is the benchmark codebase used for evaluation.
+
+It is a medium-sized Python service repository with:
+
+- authentication
+- user/project/task management
+- audit logging
+- config loading
+- security helpers
+- database repositories
+- a deterministic pytest suite
+
+Its purpose is not to be the experiment runner. Its purpose is to be the
+"software engineering problem space" on which the LLM strategies are tested.
+
+Important subdirectories:
+
+- pyservicelab/
+  The production code.
+
+- tests/
+  The benchmark test suite.
+
+- tasks/
+  Patch files that inject known bugs or broken tests/features.
+
+- scripts/
+  Utility scripts such as:
+  - apply_task.py
+  - reset_repo.py
+
+Important benchmark concept:
+
+- Some tasks are bug-fix tasks.
+- Some tasks are feature tasks.
+- Some tasks are test-fix tasks.
+
+We repaired and validated the task application flow so that task patches are
+actually applied and do not silently report success when no file changed.
+
+
+5. WHAT server-mcp IS
+---------------------
+
+server-mcp is the tool server used by the MCP strategy.
+
+Its role is:
+
+- expose repository operations as controlled tools
+- prevent the model from directly reading the whole repo without limits
+- log tool behavior
+- provide a clean "agent with tools" interface
+
+Main tool categories:
+
+- file listing
+- file reading
+- file searching
+- test execution
+- patch application
+- git diff inspection
+
+Main tools:
+
+- list_files
+- read_file
+- search_in_files
+- run_tests
+- apply_patch
+- git_diff
+
+
+6. WHAT harness IS
+------------------
+
+harness is the experiment engine.
+
+It is responsible for:
+
+- selecting the task
+- selecting the strategy
+- resetting the repo
+- applying the bug/task patch
+- launching the strategy
+- capturing metrics
+- saving per-run and summary results
+
+This is the component that makes the project reproducible and comparable.
+
+
+7. HOW THE THREE STRATEGIES DIFFER
+----------------------------------
+
+7.1 Prompt-only
+
+Prompt-only is the static baseline.
+
+It now works like this:
+
+1. Run only the expected failing task tests.
+2. Collect a fixed static context package:
+   - all production Python files under pyservicelab/
+   - only the expected failing test file(s)
+3. Put that context into one prompt.
+4. Ask the LLM for one patch.
+5. Apply the patch.
+6. Rerun only the expected failing task tests.
+
+Important property:
+
+- the model does not retrieve files dynamically
+- the model does not use repo tools interactively
+- the harness decides the static context up front
+
+This keeps prompt-only clearly different from both RAG and MCP.
+
+
+7.2 RAG
+
+RAG is the retrieval-based baseline.
+
+It now works like this:
+
+1. Run the expected failing task tests.
+2. Build a retrieval query from:
+   - task id
+   - task type
+   - expected failing test ids
+   - failing test output
+3. Build or use an in-memory chunk index over the repository.
+4. Retrieve the top relevant chunks.
+5. Give only those chunks plus the failing test output to the model.
+6. Ask the model for a patch.
+7. Apply the patch.
+8. Rerun the expected failing task tests.
+9. Optionally repeat for a small bounded number of iterations.
+
+Important property:
+
+- the model does not use repository tools itself
+- retrieval is controlled entirely by the harness
+- context is narrower than prompt-only
+
+We implemented iterative RAG with a small fixed loop to reduce brittleness,
+but it remains a retrieval strategy rather than a tool-using strategy.
+
+
+7.3 MCP
+
+MCP is the interactive tool-using strategy.
+
+It works like this:
+
+1. Run the expected failing task tests first.
+2. Let the LLM call tools such as:
+   - run_tests
+   - search_in_files
+   - read_file
+   - apply_patch
+   - git_diff
+3. The model decides how to inspect the repository and how to repair it.
+4. After each patch, the model can rerun tests again.
+5. The loop continues until success or iteration limit.
+
+Important property:
+
+- the model chooses what context to fetch
+- repository access is interactive and tool-based
+- this strategy is the closest to an agent debugging a real codebase
+
+
+8. MAIN FILES IN harness AND WHAT THEY DO
+-----------------------------------------
+
+8.1 Core entry and orchestration
+
+harness/src/index.ts
+- Main CLI entrypoint.
+- Parses:
+  - --strategy
+  - --task
+  - --runs
+- Holds the task registry.
+- Creates the selected strategy instance.
+- Calls runTask() for each run.
+- Saves summary output.
+
+harness/src/runner/run_task.ts
+- The core per-run pipeline.
+- Does:
+  - resetRepo()
+  - applyTask()
+  - strategy.run(...)
+  - saveResult(...)
+
+harness/src/runner/repo.ts
+- Contains repo-level helpers used by the harness.
+- Runs reset and task application commands against target-repo.
+- Uses the resolved Python executable.
+
+harness/src/runner/repo_smoke.ts
+- Small smoke test for repo reset + task application.
+
+harness/src/runner/aggregator.ts
+- Builds summary statistics from completed runs.
+- Saves summary.json in results/.
+
+harness/src/runner/metrics.ts
+- Tracks:
+  - iterations
+  - tokens in/out
+  - tool calls
+  - final diff
+  - runtime
+
+harness/src/runner/result_schema.ts
+- Defines the result JSON shape saved by each run.
+
+harness/src/runner/prompt_loader.ts
+- Loads prompt templates from harness/prompts/.
+
+
+8.2 Strategy interface and strategies
+
+harness/src/strategies/strategy.ts
+- Shared strategy interface.
+- Defines StrategyContext with:
+  - task_id
+  - task_type
+  - expected_failing_tests
+  - metrics
+
+harness/src/strategies/prompt_only.ts
+- Implements the prompt-only baseline.
+- Static fixed context, one-shot prompt, one-shot patch.
+
+harness/src/strategies/rag.ts
+- Implements the retrieval-based strategy.
+- Builds retrieval query, gets relevant chunks, prompts the model, applies patch,
+  reruns task tests.
+- Was later upgraded from one-shot RAG to bounded iterative RAG.
+
+harness/src/strategies/mcp.ts
+- Implements the interactive MCP agent loop.
+- Lets the model call tools over multiple iterations.
+- Uses task-scoped tests for ground truth.
+
+harness/src/strategies/mcp_tools.ts
+- Defines MCP tool schemas for the LLM.
+- Dispatches model tool calls to the harness MCP client.
+- Normalizes malformed or weak-model tool names.
+- Truncates large tool outputs before feeding them back to the model.
+
+
+8.3 LLM provider layer
+
+harness/src/llm/types.ts
+- Shared LLM request/response types.
+
+harness/src/llm/provider.ts
+- Chooses the active provider using environment variables.
+- Supports:
+  - Anthropic
+  - OpenAI-compatible providers
+
+harness/src/llm/anthropic_provider.ts
+- Anthropic-specific implementation.
+
+harness/src/llm/openai_provider.ts
+- OpenAI-compatible implementation.
+- Supports configurable OPENAI_BASE_URL.
+- This also lets the harness talk to NVIDIA-hosted OpenAI-compatible endpoints.
+
+
+8.4 MCP client layer
+
+harness/src/mcp/client.ts
+- Harness-side MCP client used to talk to server-mcp.
+- Used by strategies and smoke tests.
+
+harness/src/mcp/smoke.ts
+- MCP connectivity smoke test.
+
+harness/src/python.ts
+- Resolves which Python interpreter the harness should use.
+- Prefers target-repo/.venv when appropriate.
+
+harness/src/env.ts
+- Loads root .env values into the harness process.
+
+
+8.5 RAG-specific module
+
+harness/src/rag/types.ts
+- Types for chunks, index, and retrieval results.
+
+harness/src/rag/chunker.ts
+- Splits files into deterministic overlapping line chunks.
+
+harness/src/rag/indexer.ts
+- Builds an in-memory code index over:
+  - pyservicelab/
+  - tests/
+
+harness/src/rag/retriever.ts
+- Lexical retriever.
+- Scores chunks using simple token overlap and path-aware bias.
+
+harness/src/rag/smoke.ts
+- Retrieval debug/smoke utility.
+- Helps inspect retrieval quality for chosen tasks or custom queries.
+
+
+9. MAIN FILES IN server-mcp AND WHAT THEY DO
+--------------------------------------------
+
+server-mcp/src/index.ts
+- MCP server entrypoint.
+- Registers all tools and handles incoming MCP requests.
+
+server-mcp/src/tools/list_files.ts
+- Lists files/directories under a repo-relative path.
+
+server-mcp/src/tools/read_file.ts
+- Reads file contents safely with limits.
+
+server-mcp/src/tools/search_in_files.ts
+- Searches repo text for query matches.
+
+server-mcp/src/tools/run_tests.ts
+- Runs pytest safely.
+- Supports optional task-specific test node ids.
+
+server-mcp/src/tools/apply_patch.ts
+- Applies patches to the repository through git utilities.
+
+server-mcp/src/tools/git_diff.ts
+- Returns current git diff.
+
+server-mcp/src/utils/file_utils.ts
+- Safe file walking and path handling.
+- Filters noisy folders and file types.
+
+server-mcp/src/utils/git_utils.ts
+- Handles patch normalization and diff normalization.
+- Important for patch compatibility and path consistency.
+
+server-mcp/src/utils/logging.ts
+- Logs tool activity and tool result previews.
+
+server-mcp/src/utils/process_utils.ts
+- Subprocess execution helpers.
+
+server-mcp/src/env.ts
+- Loads root .env for the MCP server.
+
+server-mcp/test/integration.test.ts
+- Integration tests for the MCP server behavior.
+
+server-mcp/scripts/smoke_client.ts
+- Tool-level smoke client.
+
+
+10. MAIN FILES IN target-repo THAT MATTER FOR THE BENCHMARK
+-----------------------------------------------------------
+
+The benchmark repo is large, so the most important explanation is by layer.
+
+10.1 Production code
+
+target-repo/pyservicelab/domain/
+- Domain models such as User, Project, Task, AuditEntry.
+
+target-repo/pyservicelab/db/
+- Repository classes and SQLite persistence logic.
+
+target-repo/pyservicelab/services/
+- Business logic layer.
+- This is where many feature and bug-fix tasks are exercised.
+
+target-repo/pyservicelab/auth/
+- Password hashing, token generation, auth logic, policies.
+
+target-repo/pyservicelab/security/
+- Security/path-safety helpers.
+
+target-repo/pyservicelab/api/
+- Handlers, routes, and request/response schemas.
+
+target-repo/pyservicelab/config/
+- Settings and configuration loading.
+
+target-repo/pyservicelab/core/
+- Shared utilities such as errors, logging, time, tracing, validation.
+
+target-repo/pyservicelab/cli.py
+- Simple CLI entrypoint for benchmark service commands.
+
+10.2 Benchmark task support
+
+target-repo/tasks/*.patch
+- Each patch injects one known defect or broken test.
+
+target-repo/scripts/apply_task.py
+- Applies a selected task patch.
+- Validates clean working tree.
+- Now also validates that a patch actually changes tracked files.
+
+target-repo/scripts/reset_repo.py
+- Restores the benchmark repo to a clean baseline.
+
+10.3 Tests
+
+target-repo/tests/
+- Ground-truth benchmark tests.
+- These are used to define expected task success/failure behavior.
+
+
+11. IMPORTANT PROJECT CHANGES WE MADE
+-------------------------------------
+
+The current working system did not exist in a clean state initially. Several
+important engineering fixes were made to get all strategies into a usable state.
+
+11.1 Harness result-saving fixes
+
+- fixed inconsistent result path handling
+- fixed summary.json directory creation
+- aligned per-run and summary output locations
+
+11.2 Provider abstraction
+
+- refactored the harness to support more than Anthropic
+- added OpenAI-compatible provider layer
+- added configurable OPENAI_BASE_URL
+- enabled use of NVIDIA-hosted OpenAI-compatible models
+
+11.3 Root .env loading
+
+- added project-root .env loading to both harness and server-mcp
+- removed the need to manually export variables for every shell
+
+11.4 Task application fixes
+
+- fixed apply_task.py to use the actual git top-level
+- made it fail when git apply reports success but no tracked files changed
+- fixed stale task patch path headers
+- validated task_01 through task_09 patch application
+
+11.5 MCP pipeline fixes
+
+- normalized tool names emitted by weaker models
+- reduced context growth by truncating oversized tool outputs
+- normalized patch and diff paths
+- improved patch compatibility with lightweight patch formats
+- ensured MCP uses task-scoped tests rather than the entire suite
+- improved logging and debugging visibility
+- filtered noisy search results from .venv, caches, and generated files
+
+11.6 Prompt-only fixes
+
+- changed prompt-only to use task-scoped tests
+- changed prompt-only to use a fixed static context package:
+  - all production Python files
+  - only the expected failing test file(s)
+- preserved prompt-only as a distinct strategy
+
+11.7 RAG implementation
+
+- added deterministic chunking
+- added in-memory lexical indexing
+- added retrieval smoke/debug tooling
+- implemented initial one-shot RAG
+- upgraded to bounded iterative RAG
+- improved task-grounding in bug-fix and test-fix prompt structure
+
+
+12. CURRENT STRATEGY STATUS
+---------------------------
+
+12.1 MCP
+
+MCP is implemented and operational.
+
+It can:
+- reset tasks correctly
+- inspect repository files interactively
+- apply patches
+- rerun task tests
+- solve benchmark tasks end to end
+
+This is the strongest and most complete strategy in the current codebase.
+
+12.2 RAG
+
+RAG is implemented and operational.
+
+It can:
+- build an index
+- retrieve relevant chunks
+- prompt the model with retrieved context
+- apply patches
+- rerun task tests
+
+It is a valid baseline, but it is weaker than MCP on some tasks.
+
+12.3 Prompt-only
+
+Prompt-only is implemented and operational.
+
+It now:
+- uses a fixed static context rule
+- remains distinct from RAG and MCP
+- can solve at least some tasks end to end
+
+It is expected to be the most context-heavy strategy because it preloads large
+static context into one prompt.
+
+
+13. HOW RESULTS ARE STORED
+--------------------------
+
+The harness saves results in:
+
+harness/results/<task_id>/<strategy>/
+
+Examples:
+
+- run_1.json
+- run_2.json
+- summary.json
+
+Each run file captures:
+
+- success/failure
+- runtime
+- iterations
+- token counts
+- tool calls
+- final diff
+- error if any
+
+
+14. WHAT A NEW READER SHOULD UNDERSTAND
+---------------------------------------
+
+If a new person reads this project, the most important conceptual model is:
+
+This is not just "an AI fixing code."
+
+It is an evaluation framework built to answer:
+
+- How does an LLM perform when context is static?
+- How does it perform when context is retrieved?
+- How does it perform when it can interact with repo tools?
+
+That is why the repository is split into:
+
+- target-repo: the benchmark software
+- server-mcp: the tool interface
+- harness: the experiment runner
+
+Everything else in the codebase exists to support that comparison.
+
+
+15. CURRENT RECOMMENDED NEXT PHASE
+----------------------------------
+
+At this stage, the project has moved beyond setup and debugging.
+
+The recommended next phase is controlled evaluation:
+
+1. choose a pilot task set
+2. run prompt, rag, and mcp on the same tasks
+3. compare:
+   - success
+   - runtime
+   - tokens
+   - iterations
+   - patch quality
+
+The implementation foundation is now strong enough to support that.
+

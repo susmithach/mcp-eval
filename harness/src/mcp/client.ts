@@ -53,6 +53,8 @@ export class McpHarnessClient {
   private client: Client;
   private transport: StdioClientTransport;
   private toolCallCount = 0;
+  private readonly readPaths = new Set<string>();
+  private searchQueries = 0;
 
   constructor() {
     this.transport = new StdioClientTransport({
@@ -104,6 +106,7 @@ export class McpHarnessClient {
   }
 
   async readFile(path: string): Promise<ReadFileResult> {
+    this.readPaths.add(path);
     return this.callTool<ReadFileResult>("read_file", { path });
   }
 
@@ -111,6 +114,7 @@ export class McpHarnessClient {
     query: string,
     directory = ".",
   ): Promise<SearchInFilesResult> {
+    this.searchQueries++;
     return this.callTool<SearchInFilesResult>("search_in_files", {
       query,
       path: directory,
@@ -139,5 +143,17 @@ export class McpHarnessClient {
 
   getToolCallCount(): number {
     return this.toolCallCount;
+  }
+
+  getAccessStats(): {
+    filesReadCount: number;
+    filesReadPaths: string[];
+    searchQueriesCount: number;
+  } {
+    return {
+      filesReadCount: this.readPaths.size,
+      filesReadPaths: [...this.readPaths].sort(),
+      searchQueriesCount: this.searchQueries,
+    };
   }
 }

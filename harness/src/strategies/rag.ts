@@ -118,6 +118,21 @@ function buildUserMessage(
   ].join("\n");
 }
 
+function countRetrievedChars(
+  chunks: ReturnType<typeof retrieveRelevantChunks>,
+): number {
+  return chunks.reduce((sum, item) => sum + item.chunk.text.length, 0);
+}
+
+function countRetrievedLines(
+  chunks: ReturnType<typeof retrieveRelevantChunks>,
+): number {
+  return chunks.reduce(
+    (sum, item) => sum + (item.chunk.text.length === 0 ? 0 : item.chunk.text.split("\n").length),
+    0,
+  );
+}
+
 export class RagStrategy implements Strategy {
   async run(ctx: StrategyContext): Promise<ResultSchema> {
     const client = new McpHarnessClient();
@@ -133,6 +148,13 @@ export class RagStrategy implements Strategy {
 
       let latestTests = await client.runTests(ctx.expected_failing_tests);
       testsPassed = latestTests.passed;
+      ctx.metrics.setFinalTestsPassed(testsPassed);
+      let patchGenerated = false;
+      let patchApplied = false;
+      const retrievedPaths = new Set<string>();
+      let retrievedChunksCount = 0;
+      let retrievedChars = 0;
+      let retrievedLines = 0;
 
       for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
         if (testsPassed) {
@@ -151,6 +173,12 @@ export class RagStrategy implements Strategy {
         const retrievedChunks = retrieveRelevantChunks(index, retrievalQuery, {
           topK: TOP_K,
         });
+        retrievedChunksCount += retrievedChunks.length;
+        retrievedChars += countRetrievedChars(retrievedChunks);
+        retrievedLines += countRetrievedLines(retrievedChunks);
+        for (const item of retrievedChunks) {
+          retrievedPaths.add(item.chunk.path);
+        }
         const retrievedContext = buildRetrievedContext(retrievedChunks);
         const userMessage = buildUserMessage(ctx, testOutput, retrievedContext);
 
@@ -171,11 +199,31 @@ export class RagStrategy implements Strategy {
         if (!patch) {
           break;
         }
+        patchGenerated = true;
 
-        await client.applyPatch(patch);
+        const applied = await client.applyPatch(patch);
+        if (applied.applied) {
+          patchApplied = true;
+        }
         latestTests = await client.runTests(ctx.expected_failing_tests);
         testsPassed = latestTests.passed;
+        ctx.metrics.setFinalTestsPassed(testsPassed);
       }
+
+      ctx.metrics.setPatchGenerated(patchGenerated);
+      ctx.metrics.setPatchApplied(patchApplied);
+      ctx.metrics.setRetrievalMetrics({
+        retrieved_chunks_count: retrievedChunksCount,
+        retrieved_files_count: retrievedPaths.size,
+        retrieved_paths: [...retrievedPaths].sort(),
+      });
+      ctx.metrics.setContextMetrics({
+        context_files_count: retrievedPaths.size,
+        context_source_files_count: [...retrievedPaths].filter((path) => path.startsWith("pyservicelab/")).length,
+        context_test_files_count: [...retrievedPaths].filter((path) => path.startsWith("tests/")).length,
+        context_total_chars: retrievedChars,
+        context_total_lines: retrievedLines,
+      });
 
       const diff = await client.gitDiff();
       ctx.metrics.recordToolCall("run_tests");

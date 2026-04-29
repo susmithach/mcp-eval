@@ -227,7 +227,7 @@ export async function dispatchTool(
   client: McpHarnessClient,
   rawName: string,
   input: Record<string, unknown>,
-): Promise<{ name: string | null; content: string }> {
+): Promise<{ name: string | null; content: string; patchApplied?: boolean }> {
   const name = normalizeToolName(rawName, input);
   if (!name) {
     return {
@@ -235,6 +235,7 @@ export async function dispatchTool(
       content: JSON.stringify({
         error: `Unknown tool: "${rawName}". Use one of: ${MCP_TOOL_DEFINITIONS.map((tool) => tool.name).join(", ")}`,
       }),
+      patchApplied: undefined,
     };
   }
 
@@ -272,6 +273,10 @@ export async function dispatchTool(
     return {
       name,
       content: formatToolResult(name, result),
+      patchApplied:
+        name === "apply_patch"
+          ? (result as ApplyPatchResult).applied
+          : undefined,
     };
   } catch (err) {
     return {
@@ -279,6 +284,7 @@ export async function dispatchTool(
       content: JSON.stringify({
         error: err instanceof Error ? err.message : String(err),
       }),
+      patchApplied: undefined,
     };
   }
 }

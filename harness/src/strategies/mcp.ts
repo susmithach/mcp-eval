@@ -79,6 +79,7 @@ export class McpStrategy implements Strategy {
 
       let iterations = 0;
       let applyPatchAttempts = 0;
+      let appliedPatchSucceeded = false;
       let sentTestFixNudge = false;
 
       while (iterations < MAX_ITERATIONS) {
@@ -123,6 +124,9 @@ export class McpStrategy implements Strategy {
               ctx.metrics.recordToolCall(result.name);
               if (result.name === "apply_patch") {
                 applyPatchAttempts++;
+                if (result.patchApplied) {
+                  appliedPatchSucceeded = true;
+                }
               }
             }
             return {
@@ -159,6 +163,15 @@ export class McpStrategy implements Strategy {
       const finalTests = await client.runTests(ctx.expected_failing_tests);
       ctx.metrics.recordToolCall("run_tests");
       testsPassed = finalTests.passed;
+      ctx.metrics.setFinalTestsPassed(testsPassed);
+      ctx.metrics.setPatchGenerated(applyPatchAttempts > 0);
+      ctx.metrics.setPatchApplied(appliedPatchSucceeded);
+      const accessStats = client.getAccessStats();
+      ctx.metrics.setAccessMetrics({
+        files_read_count: accessStats.filesReadCount,
+        files_read_paths: accessStats.filesReadPaths,
+        search_queries_count: accessStats.searchQueriesCount,
+      });
 
       // Capture what changed
       const diff = await client.gitDiff();
