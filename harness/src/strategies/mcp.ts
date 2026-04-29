@@ -15,7 +15,13 @@ function trimConversation(
 ): LlmConversationMessage[] {
   if (messages.length <= MAX_HISTORY_MESSAGES) return messages;
   const [firstMessage, ...rest] = messages;
-  return [firstMessage, ...rest.slice(-(MAX_HISTORY_MESSAGES - 1))];
+  // Drop leading tool_results: they reference tool calls from a message that
+  // was trimmed away, which causes API errors (no matching assistant turn).
+  let tail = rest.slice(-(MAX_HISTORY_MESSAGES - 1));
+  while (tail.length > 0 && tail[0].kind === "tool_results") {
+    tail = tail.slice(1);
+  }
+  return [firstMessage, ...tail];
 }
 
 function buildRunInstruction(ctx: StrategyContext): string {
@@ -36,8 +42,7 @@ function buildRunInstruction(ctx: StrategyContext): string {
     );
   }
 
-  const editTarget =
-    ctx.task_type === "feature" ? "production code" : "production code";
+  const editTarget = "production code";
 
   return (
     "Please begin. Focus on these expected failing tests first: " +

@@ -1,6 +1,5 @@
-import type { McpHarnessClient } from "../mcp/client.js";
 import { createLlmProvider } from "../llm/provider.js";
-import { McpHarnessClient as McpClient } from "../mcp/client.js";
+import { McpHarnessClient } from "../mcp/client.js";
 import { loadPrompt } from "../runner/prompt_loader.js";
 import type { ResultSchema } from "../runner/result_schema.js";
 import type { Strategy, StrategyContext } from "./strategy.js";
@@ -88,7 +87,7 @@ function extractPatch(text: string): string | null {
 
 export class PromptOnlyStrategy implements Strategy {
   async run(ctx: StrategyContext): Promise<ResultSchema> {
-    const client = new McpClient();
+    const client = new McpHarnessClient();
     let testsPassed = false;
     let runError: string | undefined;
 

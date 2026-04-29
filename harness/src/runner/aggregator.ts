@@ -13,7 +13,7 @@ export interface RunSummary {
   runs: number;
   success_rate: number;
   avg_runtime_ms: number;
-  avg_iterations: number;
+  avg_iterations: number; // one decimal, e.g. 2.3
   avg_tool_calls_total: number;
   avg_tokens_in: number;
   avg_tokens_out: number;
@@ -42,7 +42,10 @@ export function summarise(
     runs: n,
     success_rate: n === 0 ? 0 : results.filter((r) => r.success).length / n,
     avg_runtime_ms: avg(results.map((r) => r.runtime_ms)),
-    avg_iterations: avg(results.map((r) => r.iterations)),
+    avg_iterations:
+      n === 0
+        ? 0
+        : Math.round((results.reduce((s, r) => s + r.iterations, 0) / n) * 10) / 10,
     avg_tool_calls_total: avg(results.map((r) => r.tool_calls_total)),
     avg_tokens_in: avg(results.map((r) => r.tokens_in)),
     avg_tokens_out: avg(results.map((r) => r.tokens_out)),
