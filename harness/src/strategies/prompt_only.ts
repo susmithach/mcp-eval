@@ -3,6 +3,7 @@ import { McpHarnessClient } from "../mcp/client.js";
 import { loadPrompt } from "../runner/prompt_loader.js";
 import type { ResultSchema } from "../runner/result_schema.js";
 import type { Strategy, StrategyContext } from "./strategy.js";
+import { extractPatch } from "./patch_extractor.js";
 
 const MAX_TOKENS = 8096;
 
@@ -79,20 +80,6 @@ function countTotalLines(files: Map<string, string>): number {
 }
 
 // ---------------------------------------------------------------------------
-// Patch extraction — tries <patch>...</patch> then ```diff fenced blocks
-// ---------------------------------------------------------------------------
-
-function extractPatch(text: string): string | null {
-  const tagged = text.match(/<patch>([\s\S]*?)<\/patch>/);
-  if (tagged) return tagged[1].trim();
-
-  const fenced = text.match(/```(?:diff|patch)?\n([\s\S]*?)\n```/);
-  if (fenced) return fenced[1].trim();
-
-  return null;
-}
-
-// ---------------------------------------------------------------------------
 // Strategy
 // ---------------------------------------------------------------------------
 
@@ -159,7 +146,7 @@ export class PromptOnlyStrategy implements Strategy {
 
       // 4. Single Claude API call — no tools
       const systemPrompt = await loadPrompt(ctx.task_type, ctx.task_id);
-      const { provider } = createLlmProvider();
+      const { provider, config: llmConfig } = createLlmProvider();
 
       ctx.metrics.incrementIterations();
 
@@ -175,7 +162,7 @@ export class PromptOnlyStrategy implements Strategy {
       );
 
       // 5. Extract and apply the patch
-      const patch = extractPatch(response.text);
+      const patch = extractPatch(response.text, llmConfig.providerName, llmConfig.model);
       ctx.metrics.setPatchGenerated(patch !== null);
       if (patch) {
         const applied = await client.applyPatch(patch);

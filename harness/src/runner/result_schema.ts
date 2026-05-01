@@ -62,4 +62,8 @@ export interface ResultSchema {
 
   // Final unified diff of all changes the agent made (empty string if none)
   final_diff: string;
+
+  // Derived efficiency metrics
+  tokens_total: number;       // tokens_in + tokens_out
+  context_precision: number;  // files_changed / files_accessed (0–1); 0 when no change
 }

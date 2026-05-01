@@ -5,20 +5,11 @@ import { retrieveRelevantChunks } from "../rag/retriever.js";
 import { loadPrompt } from "../runner/prompt_loader.js";
 import type { ResultSchema } from "../runner/result_schema.js";
 import type { Strategy, StrategyContext } from "./strategy.js";
+import { extractPatch } from "./patch_extractor.js";
 
 const MAX_TOKENS = 8096;
 const TOP_K = 6;
 const MAX_ITERATIONS = 3;
-
-function extractPatch(text: string): string | null {
-  const tagged = text.match(/<patch>([\s\S]*?)<\/patch>/);
-  if (tagged) return tagged[1].trim();
-
-  const fenced = text.match(/```(?:diff|patch)?\n([\s\S]*?)\n```/);
-  if (fenced) return fenced[1].trim();
-
-  return null;
-}
 
 function buildRetrievalQuery(ctx: StrategyContext, testOutput: string): string {
   return [
@@ -144,7 +135,7 @@ export class RagStrategy implements Strategy {
 
       const index = await buildRagIndex();
       const systemPrompt = await loadPrompt(ctx.task_type, ctx.task_id);
-      const { provider } = createLlmProvider();
+      const { provider, config: llmConfig } = createLlmProvider();
 
       let latestTests = await client.runTests(ctx.expected_failing_tests);
       testsPassed = latestTests.passed;
@@ -195,7 +186,7 @@ export class RagStrategy implements Strategy {
           response.usage.outputTokens,
         );
 
-        const patch = extractPatch(response.text);
+        const patch = extractPatch(response.text, llmConfig.providerName, llmConfig.model);
         if (!patch) {
           break;
         }

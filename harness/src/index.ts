@@ -153,23 +153,39 @@ function printSummaryTable(
   taskId: string,
   strategyName: string,
 ): void {
+  const n = results.length;
   const successes = results.filter((r) => r.success).length;
-  const rate = ((successes / results.length) * 100).toFixed(0);
-  const avgMs = Math.round(
-    results.reduce((s, r) => s + r.runtime_ms, 0) / results.length,
-  );
-  const avgIter = (
-    results.reduce((s, r) => s + r.iterations, 0) / results.length
-  ).toFixed(1);
+  const rate = ((successes / n) * 100).toFixed(0);
+  const avgMs = Math.round(results.reduce((s, r) => s + r.runtime_ms, 0) / n);
+  const avgIter = (results.reduce((s, r) => s + r.iterations, 0) / n).toFixed(1);
+  const avgTokensTotal = Math.round(results.reduce((s, r) => s + r.tokens_total, 0) / n);
+  const avgPrecision = (results.reduce((s, r) => s + r.context_precision, 0) / n).toFixed(2);
+
+  const failCounts = results
+    .filter((r) => r.failure_category !== null)
+    .reduce((acc, r) => {
+      const cat = r.failure_category as string;
+      acc[cat] = (acc[cat] ?? 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  const failStr =
+    Object.keys(failCounts).length === 0
+      ? "(none)"
+      : Object.entries(failCounts)
+          .map(([k, v]) => `${k}:${v}`)
+          .join(", ");
 
   console.log("\n┌─────────────────────────────────────────────┐");
   console.log(`│  Task:     ${taskId.padEnd(33)}│`);
   console.log(`│  Strategy: ${strategyName.padEnd(33)}│`);
-  console.log(`│  Runs:     ${String(results.length).padEnd(33)}│`);
+  console.log(`│  Runs:     ${String(n).padEnd(33)}│`);
   console.log("├─────────────────────────────────────────────┤");
-  console.log(`│  Success rate:   ${`${successes}/${results.length} (${rate}%)`.padEnd(27)}│`);
-  console.log(`│  Avg runtime:    ${`${avgMs} ms`.padEnd(27)}│`);
-  console.log(`│  Avg iterations: ${avgIter.padEnd(27)}│`);
+  console.log(`│  Success rate:      ${`${successes}/${n} (${rate}%)`.padEnd(24)}│`);
+  console.log(`│  Avg runtime:       ${`${avgMs} ms`.padEnd(24)}│`);
+  console.log(`│  Avg iterations:    ${avgIter.padEnd(24)}│`);
+  console.log(`│  Avg tokens total:  ${String(avgTokensTotal).padEnd(24)}│`);
+  console.log(`│  Context precision: ${avgPrecision.padEnd(24)}│`);
+  console.log(`│  Failures by type:  ${failStr.padEnd(24)}│`);
   console.log("└─────────────────────────────────────────────┘\n");
 }
 

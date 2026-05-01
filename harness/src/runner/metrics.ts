@@ -231,6 +231,19 @@ export class MetricsTracker {
       0,
     );
     const diffStats = parseDiffStats(this._finalDiff);
+
+    const tokens_total = this._tokensIn + this._tokensOut;
+
+    // Prefer MCP files_read > RAG retrieved_files > prompt context_files
+    const filesAccessed =
+      this._accessMetrics.files_read_count ||
+      this._retrievalMetrics.retrieved_files_count ||
+      this._contextMetrics.context_files_count;
+    const context_precision =
+      filesAccessed > 0 && diffStats.files_changed_count > 0
+        ? Math.min(1, diffStats.files_changed_count / filesAccessed)
+        : 0;
+
     const failureCategory = inferFailureCategory({
       success,
       error,
@@ -269,6 +282,8 @@ export class MetricsTracker {
       lines_added: diffStats.lines_added,
       lines_deleted: diffStats.lines_deleted,
       final_diff: this._finalDiff,
+      tokens_total,
+      context_precision,
     };
   }
 }

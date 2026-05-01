@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import type { ResultSchema, TaskType } from "./result_schema.js";
+import type { FailureCategory, ResultSchema, TaskType } from "./result_schema.js";
 
 // ---------------------------------------------------------------------------
 // Summary schema
@@ -17,6 +17,9 @@ export interface RunSummary {
   avg_tool_calls_total: number;
   avg_tokens_in: number;
   avg_tokens_out: number;
+  avg_tokens_total: number;
+  avg_context_precision: number; // 0–1, two decimal places
+  failure_counts: Partial<Record<FailureCategory, number>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -49,6 +52,21 @@ export function summarise(
     avg_tool_calls_total: avg(results.map((r) => r.tool_calls_total)),
     avg_tokens_in: avg(results.map((r) => r.tokens_in)),
     avg_tokens_out: avg(results.map((r) => r.tokens_out)),
+    avg_tokens_total: avg(results.map((r) => r.tokens_total)),
+    avg_context_precision:
+      n === 0
+        ? 0
+        : Math.round((results.reduce((s, r) => s + r.context_precision, 0) / n) * 100) / 100,
+    failure_counts: results
+      .filter((r) => r.failure_category !== null)
+      .reduce(
+        (acc, r) => {
+          const cat = r.failure_category as FailureCategory;
+          acc[cat] = (acc[cat] ?? 0) + 1;
+          return acc;
+        },
+        {} as Partial<Record<FailureCategory, number>>,
+      ),
   };
 }
 
