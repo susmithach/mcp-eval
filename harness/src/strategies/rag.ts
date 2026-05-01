@@ -7,8 +7,8 @@ import type { ResultSchema } from "../runner/result_schema.js";
 import type { Strategy, StrategyContext } from "./strategy.js";
 import { extractPatch } from "./patch_extractor.js";
 
-const MAX_TOKENS = 8096;
-const TOP_K = 6;
+const MAX_TOKENS = 16384;
+const TOP_K = 8;
 const MAX_ITERATIONS = 3;
 
 function buildRetrievalQuery(ctx: StrategyContext, testOutput: string): string {

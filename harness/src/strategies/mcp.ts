@@ -7,7 +7,7 @@ import type { Strategy, StrategyContext } from "./strategy.js";
 import { MCP_TOOL_DEFINITIONS, dispatchTool } from "./mcp_tools.js";
 
 const MAX_TOKENS = 8096;
-const MAX_ITERATIONS = 20;
+const MAX_ITERATIONS = 30;
 const MAX_HISTORY_MESSAGES = 10;
 
 function trimConversation(
