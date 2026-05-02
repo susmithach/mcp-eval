@@ -223,34 +223,35 @@ export class McpStrategy implements Strategy {
 
         if (response.toolCalls.length === 0) break;
 
-        const toolResults = await Promise.all(
-          response.toolCalls.map(async (toolCall) => {
-            const toolInput =
-              toolCall.name === "run_tests" &&
-              (!Array.isArray(toolCall.input["tests"]) ||
-                toolCall.input["tests"].length === 0)
-                ? { ...toolCall.input, tests: ctx.expected_failing_tests }
-                : toolCall.input;
-            const result = await dispatchTool(
-              client,
-              toolCall.name,
-              toolInput,
-            );
-            if (result.name) {
-              ctx.metrics.recordToolCall(result.name);
-              if (result.name === "apply_patch") {
-                applyPatchAttempts++;
-                if (result.patchApplied) {
-                  appliedPatchSucceeded = true;
-                }
-              }
+        const dispatchOne = async (toolCall: (typeof response.toolCalls)[number]) => {
+          const toolInput =
+            normalizeToolName(toolCall.name, toolCall.input) === "run_tests" &&
+            (!Array.isArray(toolCall.input["tests"]) ||
+              toolCall.input["tests"].length === 0)
+              ? { ...toolCall.input, tests: ctx.expected_failing_tests }
+              : toolCall.input;
+          const result = await dispatchTool(client, toolCall.name, toolInput);
+          if (result.name) {
+            ctx.metrics.recordToolCall(result.name);
+            if (result.name === "apply_patch") {
+              applyPatchAttempts++;
+              if (result.patchApplied) appliedPatchSucceeded = true;
             }
-            return {
-              toolCallId: toolCall.id,
-              content: result.content,
-            };
-          }),
+          }
+          return { toolCallId: toolCall.id, content: result.content };
+        };
+
+        // If apply_patch is in this batch, run all calls sequentially so the
+        // file write completes before any subsequent run_tests reads the disk.
+        const batchHasPatch = response.toolCalls.some(
+          (tc) => normalizeToolName(tc.name, tc.input) === "apply_patch",
         );
+        const toolResults: { toolCallId: string; content: string }[] = [];
+        if (batchHasPatch) {
+          for (const tc of response.toolCalls) toolResults.push(await dispatchOne(tc));
+        } else {
+          toolResults.push(...(await Promise.all(response.toolCalls.map(dispatchOne))));
+        }
 
         messages.push({
           role: "user",
@@ -263,7 +264,7 @@ export class McpStrategy implements Strategy {
         // and can undo it (as happened in task_03: fixed at iter ~10, then
         // spent 20 more iterations breaking its own correct patch).
         const targetTestsPassed = response.toolCalls.some((tc, i) => {
-          if (tc.name !== "run_tests") return false;
+          if (normalizeToolName(tc.name, tc.input) !== "run_tests") return false;
           try {
             const parsed = JSON.parse(toolResults[i].content) as Record<string, unknown>;
             return parsed["passed"] === true;
