@@ -3,7 +3,7 @@ import type { RagChunk, RagIndex, RetrievalOptions, RetrievedChunk } from "./typ
 export const DEFAULT_RETRIEVAL_OPTIONS: RetrievalOptions = {
   topK: 6,
   sourceBoostFactor: 1.0,
-  deduplicatePerFile: false,
+  maxChunksPerFile: 0,
 };
 
 const TOKEN_PATTERN = /[a-zA-Z0-9_]+/g;
@@ -115,8 +115,8 @@ export function retrieveRelevantChunks(
   const topK = options?.topK ?? DEFAULT_RETRIEVAL_OPTIONS.topK;
   const sourceBoostFactor =
     options?.sourceBoostFactor ?? DEFAULT_RETRIEVAL_OPTIONS.sourceBoostFactor;
-  const deduplicatePerFile =
-    options?.deduplicatePerFile ?? DEFAULT_RETRIEVAL_OPTIONS.deduplicatePerFile;
+  const maxChunksPerFile =
+    options?.maxChunksPerFile ?? DEFAULT_RETRIEVAL_OPTIONS.maxChunksPerFile;
 
   if (topK < 1) {
     throw new Error("topK must be at least 1");
@@ -136,18 +136,21 @@ export function retrieveRelevantChunks(
       return a.chunk.id.localeCompare(b.chunk.id);
     });
 
-  // Fix 2: keep only the single highest-scoring chunk per file so that
-  // overlapping 120-line windows from the same file don't consume multiple
-  // slots and confuse the LLM with near-duplicate content.
-  if (!deduplicatePerFile) {
+  // Fix 2: cap the number of chunks kept per file so that overlapping 120-line
+  // windows don't fill the top-K with near-duplicate content from one file.
+  // maxChunksPerFile=0 disables the cap (no deduplication).
+  // maxChunksPerFile=2 allows up to 2 chunks per file, covering large files
+  // where the relevant code spans multiple windows.
+  if (maxChunksPerFile <= 0) {
     return scored.slice(0, topK);
   }
 
-  const seen = new Set<string>();
+  const fileCounts = new Map<string, number>();
   const deduplicated: Array<{ chunk: RagChunk; score: number }> = [];
   for (const item of scored) {
-    if (!seen.has(item.chunk.path)) {
-      seen.add(item.chunk.path);
+    const count = fileCounts.get(item.chunk.path) ?? 0;
+    if (count < maxChunksPerFile) {
+      fileCounts.set(item.chunk.path, count + 1);
       deduplicated.push(item);
     }
     if (deduplicated.length >= topK) break;

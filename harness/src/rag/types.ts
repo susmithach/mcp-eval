@@ -24,5 +24,5 @@ export interface ChunkingOptions {
 export interface RetrievalOptions {
   topK: number;
   sourceBoostFactor: number;
-  deduplicatePerFile: boolean;
+  maxChunksPerFile: number;
 }

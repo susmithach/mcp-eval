@@ -197,7 +197,7 @@ export class RagStrategy implements Strategy {
         const retrievedChunks = retrieveRelevantChunks(index, retrievalQuery, {
           topK: TOP_K,
           sourceBoostFactor,
-          deduplicatePerFile: true,
+          maxChunksPerFile: 2,
         });
         retrievedChunksCount += retrievedChunks.length;
         retrievedChars += countRetrievedChars(retrievedChunks);
