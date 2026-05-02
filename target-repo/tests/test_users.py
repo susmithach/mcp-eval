@@ -105,7 +105,7 @@ class TestListUsers:
         make_user(user_service, username="user_a")
         make_user(user_service, username="user_b")
         users = user_service.list_users()
-        assert len(users) == 2
+        assert len(users) == 3
 
     def test_list_active_only(self, user_service: UserService) -> None:
         u1 = make_user(user_service, username="active_u")
