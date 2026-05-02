@@ -4,7 +4,7 @@ import type { LlmConversationMessage } from "../llm/types.js";
 import { loadPrompt } from "../runner/prompt_loader.js";
 import type { ResultSchema } from "../runner/result_schema.js";
 import type { Strategy, StrategyContext } from "./strategy.js";
-import { MCP_TOOL_DEFINITIONS, dispatchTool } from "./mcp_tools.js";
+import { MCP_TOOL_DEFINITIONS, dispatchTool, normalizeToolName } from "./mcp_tools.js";
 
 // Fix #4: was 8096 — raised to match RAG/Prompt so the model has enough room
 // to reason about a file it just read AND format a complete patch in one turn.
@@ -186,8 +186,17 @@ export class McpStrategy implements Strategy {
       let iterations = 0;
       let applyPatchAttempts = 0;
       let appliedPatchSucceeded = false;
-      let sentTestFixNudge = false;
-      let sentBugFixNudge = false; // Fix #3
+
+      // Staleness-based nudge: fires when the model has spent N consecutive
+      // iterations revisiting the same files and searches without applying any
+      // change. This is a behavioral signal — not a fixed iteration count or
+      // task-type gate — so it applies equally to all task types and would
+      // also catch over-exploration on tasks that would otherwise pass.
+      const STALE_THRESHOLD = 3;
+      const filesSeenSet = new Set<string>();
+      const searchesSeen = new Set<string>();
+      let staleIterations = 0;
+      let sentNudge = false;
 
       while (iterations < MAX_ITERATIONS) {
         ctx.metrics.incrementIterations();
@@ -272,41 +281,49 @@ export class McpStrategy implements Strategy {
           break;
         }
 
-        // Fix #3: nudge bug_fix/feature tasks that are stuck in exploration.
-        // The test_fix nudge (below) already existed; this mirrors it for the
-        // other task types where the model tends to search indefinitely.
-        if (
-          (ctx.task_type === "bug_fix" || ctx.task_type === "feature") &&
-          !sentBugFixNudge &&
-          applyPatchAttempts === 0 &&
-          iterations >= 6
-        ) {
-          messages.push({
-            role: "user",
-            kind: "text",
-            text:
-              "You have explored enough context. Stop searching and apply the smallest " +
-              "production-code patch now. Focus on the most suspicious line in the source " +
-              "file that would cause the observed test failure, make one targeted fix, " +
-              "then run the tests to verify.",
-          });
-          sentBugFixNudge = true;
-        }
-
-        if (
-          ctx.task_type === "test_fix" &&
-          !sentTestFixNudge &&
-          applyPatchAttempts === 0 &&
-          iterations >= 4
-        ) {
-          messages.push({
-            role: "user",
-            kind: "text",
-            text:
-              "You have enough context. Stop exploring and apply the smallest test-only patch now. " +
-              "For count/assertion failures, prefer correcting the expected literal in the failing test to match the observed behavior shown by run_tests.",
-          });
-          sentTestFixNudge = true;
+        // Staleness nudge: if the model has spent STALE_THRESHOLD consecutive
+        // iterations reading the same files and running the same searches with
+        // no patch attempt, it is cycling. Fire once to break the loop.
+        // This is behavior-driven, not task-type or iteration-count gated.
+        {
+          let gainedNewInfo = false;
+          let patchThisIteration = false;
+          for (const tc of response.toolCalls) {
+            const name = normalizeToolName(tc.name, tc.input);
+            if (name === "read_file") {
+              const path = tc.input["path"] as string | undefined;
+              if (path && !filesSeenSet.has(path)) {
+                filesSeenSet.add(path);
+                gainedNewInfo = true;
+              }
+            } else if (name === "search_in_files") {
+              const query = tc.input["query"] as string | undefined;
+              if (query && !searchesSeen.has(query)) {
+                searchesSeen.add(query);
+                gainedNewInfo = true;
+              }
+            } else if (name === "apply_patch") {
+              patchThisIteration = true;
+            }
+          }
+          if (patchThisIteration) {
+            staleIterations = 0;
+          } else if (gainedNewInfo) {
+            staleIterations = 0;
+          } else {
+            staleIterations++;
+          }
+          if (!sentNudge && staleIterations >= STALE_THRESHOLD) {
+            messages.push({
+              role: "user",
+              kind: "text",
+              text:
+                "You have been revisiting the same files and searches for several " +
+                "iterations without making a change. Stop exploring and apply a patch " +
+                "now based on what you have already found.",
+            });
+            sentNudge = true;
+          }
         }
       }
 
