@@ -120,12 +120,20 @@ function inferFailureCategory(args: {
     return "runtime_error";
   }
 
-  if (!args.patchGenerated || args.finalDiff.trim().length === 0) {
+  // Fix #5: use git diff as the authoritative source of truth.
+  // patchApplied is a bookkeeping flag that can be false even when the Codex
+  // fallback successfully wrote the file (it returns applied:false on error
+  // paths). The diff never lies — if it's non-empty, the patch landed.
+  const diffPresent = args.finalDiff.trim().length > 0;
+
+  if (!args.patchGenerated && !diffPresent) {
     return "no_patch";
   }
-  if (!args.patchApplied) {
+  if (!diffPresent) {
+    // Something was attempted (patchGenerated=true) but nothing changed on disk.
     return "patch_apply_failure";
   }
+  // Diff is non-empty → file was changed. Tests still failed → wrong fix.
   return "wrong_logic";
 }
 

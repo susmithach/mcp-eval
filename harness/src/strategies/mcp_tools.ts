@@ -117,7 +117,9 @@ const TOOL_NAME_ALIASES: Record<string, string> = {
   view_file: "read_file",
 };
 
-const READ_FILE_CHAR_LIMIT = 12_000;
+// Fix #4: was 12_000 — reduced so a single file read doesn't consume the
+// model's entire reasoning budget and force it to reconstruct paths from memory.
+const READ_FILE_CHAR_LIMIT = 8_000;
 const RUN_TESTS_CHAR_LIMIT = 6_000;
 const GIT_DIFF_CHAR_LIMIT = 6_000;
 

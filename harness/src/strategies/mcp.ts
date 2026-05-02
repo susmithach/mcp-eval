@@ -6,23 +6,125 @@ import type { ResultSchema } from "../runner/result_schema.js";
 import type { Strategy, StrategyContext } from "./strategy.js";
 import { MCP_TOOL_DEFINITIONS, dispatchTool } from "./mcp_tools.js";
 
-const MAX_TOKENS = 8096;
+// Fix #4: was 8096 — raised to match RAG/Prompt so the model has enough room
+// to reason about a file it just read AND format a complete patch in one turn.
+const MAX_TOKENS = 16384;
 const MAX_ITERATIONS = 30;
-const MAX_HISTORY_MESSAGES = 10;
+// Fix #2: window is kept small; summarizeAndTrim replaces evicted content with
+// a structured memo so the model never loses track of what it already did.
+const MAX_HISTORY_MESSAGES = 12;
 
-function trimConversation(
+// ---------------------------------------------------------------------------
+// Fix #2 — Context summarization
+// When messages exceed MAX_HISTORY_MESSAGES, extract key facts from the evicted
+// turns and inject them as a compact memo rather than silently dropping them.
+// This prevents the re-read loop where the model keeps re-fetching files whose
+// results were trimmed away.
+// ---------------------------------------------------------------------------
+
+function extractFirstError(stdout: string): string {
+  for (const line of stdout.split("\n")) {
+    const t = line.trim();
+    if (t.startsWith("E ") || t.includes("AssertionError") || t.includes("FAILED")) {
+      return t.slice(0, 140);
+    }
+  }
+  return stdout.slice(0, 140);
+}
+
+function buildContextSummary(evicted: LlmConversationMessage[]): string {
+  const testsRun: string[] = [];
+  const filesRead: string[] = [];
+  const searchesRun: string[] = [];
+  const patchResults: string[] = [];
+
+  // Map tool-call id → name and input so we can label each result.
+  const toolCallNames = new Map<string, string>();
+  const toolCallInputs = new Map<string, Record<string, unknown>>();
+  for (const msg of evicted) {
+    if (msg.kind === "assistant") {
+      for (const tc of msg.toolCalls) {
+        toolCallNames.set(tc.id, tc.name);
+        toolCallInputs.set(tc.id, tc.input);
+      }
+    }
+  }
+
+  for (const msg of evicted) {
+    if (msg.kind !== "tool_results") continue;
+    for (const result of msg.results) {
+      const name = toolCallNames.get(result.toolCallId) ?? "";
+      const input = toolCallInputs.get(result.toolCallId) ?? {};
+      try {
+        const parsed = JSON.parse(result.content) as Record<string, unknown>;
+        if (name === "run_tests") {
+          const passed = parsed["passed"] === true;
+          const snippet = passed
+            ? "PASSED"
+            : `FAILED — ${extractFirstError(String(parsed["stdout"] ?? ""))}`;
+          testsRun.push(snippet);
+        } else if (name === "read_file") {
+          const path = input["path"] as string | undefined;
+          if (path) filesRead.push(path);
+        } else if (name === "search_in_files") {
+          const query = input["query"] as string | undefined;
+          if (query) searchesRun.push(`"${query}"`);
+        } else if (name === "apply_patch") {
+          const applied = parsed["applied"] === true;
+          const err = parsed["error"]
+            ? ` (${String(parsed["error"]).slice(0, 80)})`
+            : "";
+          patchResults.push(applied ? "succeeded" : `failed${err}`);
+        }
+      } catch {
+        // unparseable tool result — skip
+      }
+    }
+  }
+
+  if (!testsRun.length && !filesRead.length && !searchesRun.length && !patchResults.length) {
+    return "";
+  }
+
+  const lines = [
+    "[Summary of earlier iterations — use this to avoid repeating work]",
+  ];
+  if (testsRun.length) lines.push(`Test runs: ${testsRun.join("; ")}`);
+  if (filesRead.length) lines.push(`Files read: ${[...new Set(filesRead)].join(", ")}`);
+  if (searchesRun.length) lines.push(`Searches: ${searchesRun.join(", ")}`);
+  if (patchResults.length) lines.push(`Patch attempts: ${patchResults.join("; ")}`);
+  return lines.join("\n");
+}
+
+function summarizeAndTrim(
   messages: LlmConversationMessage[],
 ): LlmConversationMessage[] {
   if (messages.length <= MAX_HISTORY_MESSAGES) return messages;
+
   const [firstMessage, ...rest] = messages;
-  // Drop leading tool_results: they reference tool calls from a message that
-  // was trimmed away, which causes API errors (no matching assistant turn).
-  let tail = rest.slice(-(MAX_HISTORY_MESSAGES - 1));
+  // Reserve one slot for the summary memo; keep the rest as recent history.
+  const keepCount = MAX_HISTORY_MESSAGES - 2;
+  const evicted = rest.slice(0, rest.length - keepCount);
+  let tail = rest.slice(-keepCount);
+
+  // Drop leading tool_results at the trim boundary — they reference tool calls
+  // from an evicted assistant turn and would cause API errors.
   while (tail.length > 0 && tail[0].kind === "tool_results") {
     tail = tail.slice(1);
   }
-  return [firstMessage, ...tail];
+
+  const summary = buildContextSummary(evicted);
+  const result: LlmConversationMessage[] = [firstMessage];
+  if (summary) {
+    result.push({ role: "user", kind: "text", text: summary });
+  }
+  result.push(...tail);
+  return result;
 }
+
+// ---------------------------------------------------------------------------
+// Run instruction builder
+// ---------------------------------------------------------------------------
 
 function buildRunInstruction(ctx: StrategyContext): string {
   const tests = ctx.expected_failing_tests.join(", ");
@@ -57,6 +159,10 @@ function buildRunInstruction(ctx: StrategyContext): string {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Strategy
+// ---------------------------------------------------------------------------
+
 export class McpStrategy implements Strategy {
   async run(ctx: StrategyContext): Promise<ResultSchema> {
     const client = new McpHarnessClient();
@@ -81,6 +187,7 @@ export class McpStrategy implements Strategy {
       let applyPatchAttempts = 0;
       let appliedPatchSucceeded = false;
       let sentTestFixNudge = false;
+      let sentBugFixNudge = false; // Fix #3
 
       while (iterations < MAX_ITERATIONS) {
         ctx.metrics.incrementIterations();
@@ -88,7 +195,7 @@ export class McpStrategy implements Strategy {
 
         const response = await provider.createToolResponse({
           systemPrompt,
-          messages: trimConversation(messages),
+          messages: summarizeAndTrim(messages), // Fix #2: was trimConversation
           tools: MCP_TOOL_DEFINITIONS,
           maxTokens: MAX_TOKENS,
         });
@@ -142,6 +249,50 @@ export class McpStrategy implements Strategy {
           results: toolResults,
         });
 
+        // Fix #1: exit as soon as a run_tests result shows the target tests
+        // passing. Without this, the model keeps going after a successful fix
+        // and can undo it (as happened in task_03: fixed at iter ~10, then
+        // spent 20 more iterations breaking its own correct patch).
+        const targetTestsPassed = response.toolCalls.some((tc, i) => {
+          if (tc.name !== "run_tests") return false;
+          try {
+            const parsed = JSON.parse(toolResults[i].content) as Record<string, unknown>;
+            return parsed["passed"] === true;
+          } catch {
+            return false;
+          }
+        });
+        if (targetTestsPassed) {
+          testsPassed = true;
+          messages.push({
+            role: "user",
+            kind: "text",
+            text: "All target tests are now passing. Task complete — stop here.",
+          });
+          break;
+        }
+
+        // Fix #3: nudge bug_fix/feature tasks that are stuck in exploration.
+        // The test_fix nudge (below) already existed; this mirrors it for the
+        // other task types where the model tends to search indefinitely.
+        if (
+          (ctx.task_type === "bug_fix" || ctx.task_type === "feature") &&
+          !sentBugFixNudge &&
+          applyPatchAttempts === 0 &&
+          iterations >= 6
+        ) {
+          messages.push({
+            role: "user",
+            kind: "text",
+            text:
+              "You have explored enough context. Stop searching and apply the smallest " +
+              "production-code patch now. Focus on the most suspicious line in the source " +
+              "file that would cause the observed test failure, make one targeted fix, " +
+              "then run the tests to verify.",
+          });
+          sentBugFixNudge = true;
+        }
+
         if (
           ctx.task_type === "test_fix" &&
           !sentTestFixNudge &&
@@ -159,7 +310,7 @@ export class McpStrategy implements Strategy {
         }
       }
 
-      // Ground-truth success check — independent of what Claude claims
+      // Ground-truth success check — independent of what the model claims.
       const finalTests = await client.runTests(ctx.expected_failing_tests);
       ctx.metrics.recordToolCall("run_tests");
       testsPassed = finalTests.passed;
@@ -173,7 +324,6 @@ export class McpStrategy implements Strategy {
         search_queries_count: accessStats.searchQueriesCount,
       });
 
-      // Capture what changed
       const diff = await client.gitDiff();
       ctx.metrics.recordToolCall("git_diff");
       ctx.metrics.setFinalDiff(diff.diff);
