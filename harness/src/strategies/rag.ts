@@ -11,16 +11,44 @@ const MAX_TOKENS = 16384;
 const TOP_K = 8;
 const MAX_ITERATIONS = 3;
 
+// Fix 4: extract individual word parts from test class/method names so that
+// function-name tokens like "search", "purge", "validate" appear explicitly
+// in the query alongside the full compound identifiers.
+function extractTestFunctionParts(testIds: string[]): string[] {
+  const parts = new Set<string>();
+  for (const testId of testIds) {
+    for (const segment of testId.split("::")) {
+      const stripped = segment.startsWith("test_")
+        ? segment.slice(5)
+        : segment.startsWith("Test")
+        ? segment.slice(4)
+        : null;
+      if (!stripped || stripped.length < 3) continue;
+      // Full snake_case name (matched as single token by the tokenizer).
+      parts.add(stripped);
+      // Individual words split on underscores and camelCase boundaries.
+      for (const word of stripped.replace(/([A-Z])/g, " $1").toLowerCase().split(/[_ ]+/)) {
+        if (word.length >= 3) parts.add(word);
+      }
+    }
+  }
+  return [...parts];
+}
+
 function buildRetrievalQuery(ctx: StrategyContext, testOutput: string): string {
+  const identifiers = extractTestFunctionParts(ctx.expected_failing_tests);
   return [
-    `Task ID: ${ctx.task_id}`,
     `Task type: ${ctx.task_type}`,
     "Expected failing tests:",
     ...ctx.expected_failing_tests,
     "",
+    identifiers.length > 0 ? `Relevant identifiers: ${identifiers.join(" ")}` : "",
+    "",
     "Observed test output:",
     testOutput,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function extractFailureHighlights(testOutput: string): string[] {
@@ -147,6 +175,11 @@ export class RagStrategy implements Strategy {
       let retrievedChars = 0;
       let retrievedLines = 0;
 
+      // Fix 1: for bug_fix/feature tasks the LLM needs source code to write a patch,
+      // so boost pyservicelab/ chunks over test files. For test_fix the test file IS
+      // the target, so no boost is applied.
+      const sourceBoostFactor = ctx.task_type === "test_fix" ? 1.0 : 2.0;
+
       for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
         if (testsPassed) {
           break;
@@ -163,6 +196,8 @@ export class RagStrategy implements Strategy {
         const retrievalQuery = buildRetrievalQuery(ctx, testOutput);
         const retrievedChunks = retrieveRelevantChunks(index, retrievalQuery, {
           topK: TOP_K,
+          sourceBoostFactor,
+          deduplicatePerFile: true,
         });
         retrievedChunksCount += retrievedChunks.length;
         retrievedChars += countRetrievedChars(retrievedChunks);

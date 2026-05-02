@@ -8,6 +8,7 @@ export interface RagChunk {
 
 export interface RagIndex {
   chunks: RagChunk[];
+  idf: Map<string, number>;
 }
 
 export interface RetrievedChunk {
@@ -22,4 +23,6 @@ export interface ChunkingOptions {
 
 export interface RetrievalOptions {
   topK: number;
+  sourceBoostFactor: number;
+  deduplicatePerFile: boolean;
 }

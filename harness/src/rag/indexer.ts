@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chunkFile, DEFAULT_CHUNKING_OPTIONS } from "./chunker.js";
+import { tokenize } from "./retriever.js";
 import type { ChunkingOptions, RagChunk, RagIndex } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -50,6 +51,26 @@ function toRepoRelativePath(absolutePath: string): string {
     : absolutePath;
 }
 
+// Fix 3 (BM25 IDF): precompute per-token inverse document frequency across all chunks.
+// idf(t) = log((N+1) / (df(t)+1)) — tokens that appear in few chunks score higher.
+function buildIdf(chunks: RagChunk[]): Map<string, number> {
+  const docFreq = new Map<string, number>();
+  const N = chunks.length;
+
+  for (const chunk of chunks) {
+    const tokens = new Set(tokenize(chunk.text));
+    for (const token of tokens) {
+      docFreq.set(token, (docFreq.get(token) ?? 0) + 1);
+    }
+  }
+
+  const idf = new Map<string, number>();
+  for (const [token, df] of docFreq) {
+    idf.set(token, Math.log((N + 1) / (df + 1)));
+  }
+  return idf;
+}
+
 export async function buildRagIndex(
   options?: Partial<ChunkingOptions>,
 ): Promise<RagIndex> {
@@ -72,5 +93,6 @@ export async function buildRagIndex(
     }
   }
 
-  return { chunks: allChunks };
+  const idf = buildIdf(allChunks);
+  return { chunks: allChunks, idf };
 }
