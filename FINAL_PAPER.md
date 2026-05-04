@@ -12,7 +12,7 @@ Large language models (LLMs) have shown strong potential in software engineering
 
 This paper presents a controlled evaluation framework comparing these three context-access strategies in repository-level software engineering tasks. The study is conducted on a Python service repository with deterministic test-based validation and covers three task categories: controlled fault-injection repair, failing-test correction, and feature-driven implementation. Across all conditions, the same underlying model (Claude Sonnet 4.6), execution environment, and stopping criteria are maintained to isolate context-access strategy as the primary experimental variable. Each task-strategy combination is evaluated over three independent runs, yielding 81 total runs.
 
-Results show that Prompt-Only achieves the highest pass rate (93%, 25/27), RAG achieves 89% (24/27) at 4× lower token cost, and MCP achieves 78% (21/27) with the highest operational overhead. The hypothesized token ordering (Prompt > RAG > MCP) was refuted: MCP consumed the most tokens on average due to agent loop overhead. The hypothesized reliability advantage for MCP was also refuted: MCP produced the most failures, including four commitment-paralysis failures and five provider-error failures from API exhaustion. These findings reveal that the value of dynamic context access is highly sensitive to codebase scale, and that agentic exploration overhead can outweigh its benefits when the full repository fits within a single prompt.
+Results show that Prompt-Only achieves the highest pass rate (93%, 25/27), RAG achieves 89% (24/27) at 4× lower token cost, and MCP achieves 70% (19/27) with the highest operational overhead. The hypothesized token ordering (Prompt > RAG > MCP) was refuted: MCP consumed the most tokens on average due to agent loop overhead. The hypothesized reliability advantage for MCP was also refuted: MCP produced the most failures, including three commitment-paralysis failures and three provider-error failures from API exhaustion. These findings reveal that the value of dynamic context access is highly sensitive to codebase scale, and that agentic exploration overhead can outweigh its benefits when the full repository fits within a single prompt.
 
 **Index Terms** — large language models, software engineering agents, retrieval-augmented generation, Model Context Protocol, repository-level code repair, tool-augmented LLMs, empirical evaluation
 
@@ -224,9 +224,9 @@ Table II shows pass rates across all 81 runs.
 | task_07 | feature | 3/3 | 3/3 | 2/3 |
 | task_08 | test_fix | 3/3 | 3/3 | 3/3 |
 | task_09 | test_fix | 3/3 | 3/3 | **0/3** |
-| **Total** | | **24/27 (89%)** | **25/27 (93%)** | **21/27 (78%)** |
+| **Total** | | **24/27 (89%)** | **25/27 (93%)** | **19/27 (70%)** |
 
-Prompt-Only achieves the highest aggregate pass rate (93%), followed by RAG (89%), then MCP (78%). Across task types: all three strategies achieve high pass rates on `bug_fix` tasks (RAG: 14/15, Prompt: 14/15, MCP: 14/15), but diverge on `feature` and `test_fix` tasks. RAG passes all feature and test_fix tasks. Prompt-Only passes all feature tasks. MCP fails all three runs of both task_06 (feature synthesis) and task_09 (test_fix), representing 0% reliability on two of the nine tasks.
+Prompt-Only achieves the highest aggregate pass rate (93%), followed by RAG (89%), then MCP (70%). Across task types: all three strategies achieve high pass rates on `bug_fix` tasks (RAG: 14/15, Prompt: 14/15, MCP: 14/15), but diverge on `feature` and `test_fix` tasks. RAG passes all feature and test_fix tasks. Prompt-Only passes all feature tasks. MCP fails all three runs of both task_06 (feature synthesis) and task_09 (test_fix), representing 0% reliability on two of the nine tasks.
 
 The tasks on which all three strategies pass consistently (task_01, task_02, task_04, task_08) correspond to bugs with direct tracebacks that name the target file — the simplest context-navigation scenario. The tasks that differentiate strategies correspond to either semantic reasoning gaps (task_05: requires inferring correct return semantics), feature synthesis (task_06, task_07: requires generating new SQL code), or assertion literal correction requiring commitment (task_09).
 
@@ -305,7 +305,7 @@ Prompt-Only is fastest on average (5.9 s), driven by a single API call per task.
 
 | Metric | RAG | Prompt-Only | MCP |
 |--------|:---:|:-----------:|:---:|
-| Pass rate | 89% | **93%** | 78% |
+| Pass rate | 89% | **93%** | **70%** |
 | Token ratio vs Prompt | **0.25×** | 1.0× | 1.43× |
 | Iteration ratio vs Prompt | 1.3× | **1.0×** | 13.8× |
 | Runtime ratio vs Prompt | 1.5× | **1.0×** | 2.5× |
@@ -319,12 +319,12 @@ Prompt-Only is fastest on average (5.9 s), driven by a single API call per task.
 | Category | Meaning | RAG | Prompt-Only | MCP |
 |----------|---------|:---:|:-----------:|:---:|
 | `wrong_logic` | Patch applied, tests still fail | 3 | 1 | 2 |
-| `no_patch` | Model never attempted `apply_patch` | 0 | 0 | 4 |
+| `no_patch` | Model never attempted `apply_patch` | 0 | 0 | 3 |
 | `environment_error` | Infrastructure failure before LLM call | 0 | 1 | 0 |
-| `provider_error` | API rate limit / credit exhaustion | 0 | 0 | 5 |
-| **Total** | | **3** | **2** | **11** |
+| `provider_error` | API rate limit / credit exhaustion | 0 | 0 | 3 |
+| **Total** | | **3** | **2** | **8** |
 
-MCP produced 11 failures across 27 runs, compared to 3 for RAG and 2 for Prompt-Only. MCP's dominant failure mode is `no_patch` (4 occurrences, all on task_09) and `provider_error` (5 occurrences — 2 on task_06, 1 on task_09, 1 on task_07). The `provider_error` failures represent a qualitatively distinct failure mode not present in the other strategies: long-running agent loops accumulate enough tokens (100,000–183,000 per run) that the API returns rate-limit or credit-exhaustion errors mid-run. These are operational failures caused by the agent loop's token accumulation.
+MCP produced 8 failures across 27 runs, compared to 3 for RAG and 2 for Prompt-Only. MCP's dominant failure modes are `no_patch` (3 occurrences — 1 on task_06 run_1, 2 on task_09 runs_1 and_3) and `provider_error` (3 occurrences — 2 on task_06, 1 on task_09). The `provider_error` failures represent a qualitatively distinct failure mode not present in the other strategies: long-running agent loops accumulate enough tokens (100,000–183,000 per run) that the API returns rate-limit or credit-exhaustion errors mid-run. These are operational failures caused by the agent loop's token accumulation.
 
 **Context Precision.** Table IX shows average context precision per task, defined as `min(1.0, files_changed / files_accessed)`.
 
@@ -371,7 +371,7 @@ All three strategies perform identically on bug_fix tasks (93%). The divergence 
 
 **H1 — Simple faults will not differentiate the strategies.** *Partially confirmed.* The four tasks on which all three strategies achieve 3/3 pass rates (task_01, task_02, task_04, task_08) are indeed the most direct: the bug is visible in the traceback and the target file is lexically obvious. However, task_03 differentiates strategies at the run level even though it is a single-function fix — MCP's 30-iteration failure run on task_03 demonstrates that even simple faults can cause catastrophic cost under certain agentic behaviors.
 
-**H2 — MCP will produce fewer bad patches.** *Refuted.* MCP produced the most failures (11 vs. 3 for RAG and 2 for Prompt). The structured tool interface does prevent malformed file references (the server rejects invalid paths immediately), but this advantage is outweighed by the agent's tendency toward commitment paralysis and the operational cost of long-running loops. The dominant failure modes are `no_patch` (agent never tried) and `provider_error` (API exhaustion), neither of which is addressed by schema validation.
+**H2 — MCP will produce fewer bad patches.** *Refuted.* MCP produced the most failures (8 vs. 3 for RAG and 2 for Prompt). The structured tool interface does prevent malformed file references (the server rejects invalid paths immediately), but this advantage is outweighed by the agent's tendency toward commitment paralysis and the operational cost of long-running loops. The dominant failure modes are `no_patch` (agent never tried) and `provider_error` (API exhaustion), neither of which is addressed by schema validation.
 
 **H3 — Prompt-Only will cost the most tokens.** *Refuted.* The actual token ordering is MCP > Prompt-Only > RAG. MCP consumed an average of 58,688 tokens per task, 43% more than Prompt-Only's 41,117. The agent loop's iterative LLM calls accumulate tokens at a rate proportional to iteration count, and on hard tasks (task_09: 152,028 average; task_03: 86,139 average) this far exceeds the fixed cost of loading the full codebase once. The hypothesis assumed MCP would terminate quickly on each task; instead, hard tasks push the agent to the 30-iteration ceiling.
 
@@ -389,7 +389,7 @@ The agent loop's cost grows proportionally with difficulty: easy tasks (task_01,
 
 ### B. Commitment Paralysis as a Failure Mode
 
-Four `no_patch` failures (task_09 runs 1, 2, 3 and task_06 run 1) represent a failure mode with no analog in RAG or Prompt-Only: the model has gathered enough context to fix the bug but cannot commit to acting. This appears in two flavors:
+Three `no_patch` failures (task_09 runs 1 and 3, and task_06 run 1) represent a failure mode with no analog in RAG or Prompt-Only: the model has gathered enough context to fix the bug but cannot commit to acting. This appears in two flavors:
 
 *Verification-seeking paralysis* (task_09): the fix is a single literal change visible in the test failure message, but the agent reads production code to "verify" the correct count before changing the test. It keeps finding more files to read, never reaching certainty, and exhausts the iteration budget without acting.
 
@@ -421,11 +421,11 @@ These observations validate the use of pass@k as an evaluation metric rather tha
 
 This paper presented a controlled comparison of three context-access strategies — Prompt-Only, RAG, and MCP — for repository-level LLM software engineering tasks. Using nine tasks across three categories and three independent runs per combination (81 total runs), we find that:
 
-1. **No single strategy dominates.** Prompt-Only achieves the highest pass rate (93%) but is bounded by context-window capacity. RAG achieves 89% at 4× lower token cost. MCP achieves 78% with the highest operational overhead and the most failures.
+1. **No single strategy dominates.** Prompt-Only achieves the highest pass rate (93%) but is bounded by context-window capacity. RAG achieves 89% at 4× lower token cost. MCP achieves 70% with the highest operational overhead and the most failures.
 
 2. **Token cost ordering is the inverse of the hypothesis.** MCP consumes more tokens per task than Prompt-Only (58,688 vs. 41,117) because agent loop overhead on hard tasks outpaces the cost savings from selective access. The assumed ordering (Prompt > RAG > MCP) holds only when MCP tasks resolve quickly; on hard tasks it reverses.
 
-3. **MCP's reliability advantage does not materialize at this scale.** The structured tool interface prevents malformed file path references, but the dominant MCP failure modes — commitment paralysis (`no_patch`) and API exhaustion (`provider_error`) — are not addressed by schema validation. MCP produced 11 failures compared to 3 for RAG and 2 for Prompt-Only.
+3. **MCP's reliability advantage does not materialize at this scale.** The structured tool interface prevents malformed file path references, but the dominant MCP failure modes — commitment paralysis (`no_patch`) and API exhaustion (`provider_error`) — are not addressed by schema validation. MCP produced 8 failures compared to 3 for RAG and 2 for Prompt-Only.
 
 4. **Task type is a stronger predictor of strategy performance than task difficulty.** All three strategies achieve 93% on bug_fix tasks. The differentiation occurs on feature and test_fix tasks, where MCP achieves only 33–50% while RAG and Prompt-Only both achieve 100%.
 

@@ -48,7 +48,7 @@ A multi-module Python service application with authentication, user management, 
 |----------|--------|------------|-----------|
 | **RAG** | 24 | 27 | **89%** |
 | **Prompt-Only** | 25 | 27 | **93%** |
-| **MCP** | 21 | 27 | **78%** |
+| **MCP** | 19 | 27 | **70%** |
 
 ### Per-Task Pass Rate Heatmap
 
@@ -224,10 +224,10 @@ Measures how targeted the strategy is: what fraction of accessed files were actu
 | Category | Description | RAG | Prompt | MCP |
 |----------|-------------|:---:|:------:|:---:|
 | `wrong_logic` | Patch applied but tests still fail | 3 | 1 | 2 |
-| `no_patch` | Model never called `apply_patch` | 0 | 0 | 4 |
+| `no_patch` | Model never called `apply_patch` | 0 | 0 | 3 |
 | `environment_error` | Repo setup failed before LLM call | 0 | 1 | 0 |
-| `provider_error` | API rate limit or credit exhaustion | 0 | 0 | 5 |
-| **Total failures** | | **3** | **2** | **11** |
+| `provider_error` | API rate limit or credit exhaustion | 0 | 0 | 3 |
+| **Total failures** | | **3** | **2** | **8** |
 
 ### 5.2 Root Cause Analysis per Failure
 
@@ -355,10 +355,10 @@ Same pattern as task_03 run_1 — runs 1 and 2 resolved in 11 and 10 iterations 
 - Excels on easy tasks: task_01, task_02, task_08 resolve in 5–9 iterations with low token cost
 
 **Weaknesses:**
-- Highest failure rate (22%) and highest average token cost
+- Highest failure rate (30%) and highest average token cost
 - Cost is unpredictable — ranges from 9,143 to 183,377 tokens for a single run
-- Long-running tasks hit API provider limits (5 `provider_error` failures across 3 tasks)
-- `no_patch` failures (4 total): agent over-explores without committing to a fix
+- Long-running tasks hit API provider limits (3 `provider_error` failures across 2 tasks)
+- `no_patch` failures (3 total): agent over-explores without committing to a fix
 - `wrong_logic` failures from iterative over-patching (2 total): model applies multiple patches that interfere with each other
 - Agent loop adds latency: avg 14.9 s vs 5.9 s for Prompt
 
@@ -400,7 +400,7 @@ During development, nine issues were identified and fixed. These are documented 
 
 | Metric | RAG | Prompt-Only | MCP |
 |--------|:---:|:-----------:|:---:|
-| Pass rate (27 runs) | 89% | **93%** | 78% |
+| Pass rate (27 runs) | 89% | **93%** | **70%** |
 | Avg tokens per task | **10,152** | 41,117 | 58,688 |
 | Avg iterations | **1.3** | **1.0** | 13.8 |
 | Avg runtime | 8.8 s | **5.9 s** | 14.9 s |
