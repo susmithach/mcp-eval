@@ -59,8 +59,5 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Claude Code temp files (if any created)
-.claude/
-
 # Harness generated artifacts (result JSONs are runtime output, not source)
 harness/results/**/*.json

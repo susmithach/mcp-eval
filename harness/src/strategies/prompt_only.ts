@@ -135,7 +135,7 @@ export class PromptOnlyStrategy implements Strategy {
         "Output only the patch inside the tags — no explanation needed outside them.",
       ].join("\n");
 
-      // 4. Single Claude API call — no tools
+      // 4. Single provider call — no tools
       const systemPrompt = await loadPrompt(ctx.task_type, ctx.task_id);
       const { provider, config: llmConfig } = createLlmProvider();
 

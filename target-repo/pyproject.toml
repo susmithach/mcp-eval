@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pyservicelab"
 version = "0.1.0"
-description = "A benchmark service repository for evaluating agentic AI systems"
+description = "A modular Python service repository used for controlled repair experiments"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []

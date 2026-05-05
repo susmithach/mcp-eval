@@ -99,7 +99,7 @@ function applyHunksToContent(content: string, hunkLines: string[]): string {
   return currentLines.join("\n");
 }
 
-function applyCodexStylePatch(repoPath: string, patchContent: string): boolean {
+function applyStructuredPatchFormat(repoPath: string, patchContent: string): boolean {
   const lines = patchContent.split(/\r?\n/);
   if (!lines[0]?.startsWith("*** Begin Patch")) return false;
 
@@ -152,7 +152,7 @@ function applyFallbackPatch(
   patchContent: string,
 ): { applied: boolean; error: string | null } {
   try {
-    if (applyCodexStylePatch(repoPath, patchContent)) {
+    if (applyStructuredPatchFormat(repoPath, patchContent)) {
       return { applied: true, error: null };
     }
     if (applyLooseUnifiedDiff(repoPath, patchContent)) {

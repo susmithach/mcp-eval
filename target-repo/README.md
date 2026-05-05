@@ -1,7 +1,7 @@
 # PyServiceLab
 
-A medium-sized Python service repository designed as a benchmark dataset for
-evaluating agentic AI systems (prompt-based, RAG-based, and MCP-based).
+A medium-sized Python service repository used for controlled code-repair and
+testing experiments.
 
 ---
 
@@ -136,7 +136,7 @@ CLI ──► API handlers ──► Services ──► Repositories ──► S
 ## Task Injection Framework
 
 The `tasks/` directory contains `.patch` files that introduce controlled bugs for
-use in AI evaluation benchmarks.  Each patch corresponds to one or more specific
+use in repeatable repair experiments. Each patch corresponds to one or more specific
 failing tests so results are deterministic.
 
 ### Apply a task

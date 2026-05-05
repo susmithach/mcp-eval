@@ -1,12 +1,12 @@
-// Per-model normalizers live here. When a new model produces weird output
-// (JSON-escaped text, etc.) just add an entry to MODEL_NORMALIZERS below.
+// Per-model normalizers live here. When a provider returns unusual patch output
+// (JSON-escaped text, etc.) add an entry to MODEL_NORMALIZERS below.
 
 interface ModelNormalizer {
   matches: (providerName: string, model: string) => boolean;
   normalize: (text: string) => string;
 }
 
-// some models collapse the patch to one line with \n escapes instead of real newlines
+// Some providers collapse the patch to one line with \n escapes instead of real newlines.
 function unescapeJsonEscapes(text: string): string {
   return text
     .replace(/\\\\/g, "\x00") // protect real double-backslashes first
@@ -18,7 +18,7 @@ function unescapeJsonEscapes(text: string): string {
 
 const MODEL_NORMALIZERS: ModelNormalizer[] = [
   {
-    // gpt-oss-120b on NVIDIA NIM outputs JSON-escaped patch content
+    // Some OpenAI-compatible models return JSON-escaped patch content.
     matches: (_provider, model) =>
       model.toLowerCase().includes("gpt-oss"),
     normalize: unescapeJsonEscapes,
