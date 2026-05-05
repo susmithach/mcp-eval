@@ -2,10 +2,6 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { FailureCategory, ResultSchema, TaskType } from "./result_schema.js";
 
-// ---------------------------------------------------------------------------
-// Summary schema
-// ---------------------------------------------------------------------------
-
 export interface RunSummary {
   task_id: string;
   task_type: TaskType;
@@ -21,10 +17,6 @@ export interface RunSummary {
   avg_context_precision: number; // 0–1, two decimal places
   failure_counts: Partial<Record<FailureCategory, number>>;
 }
-
-// ---------------------------------------------------------------------------
-// Computation
-// ---------------------------------------------------------------------------
 
 function avg(values: number[]): number {
   if (values.length === 0) return 0;
@@ -69,10 +61,6 @@ export function summarise(
       ),
   };
 }
-
-// ---------------------------------------------------------------------------
-// Persistence
-// ---------------------------------------------------------------------------
 
 export async function saveSummary(
   resultsDir: string,

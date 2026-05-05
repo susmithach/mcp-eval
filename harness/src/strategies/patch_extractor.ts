@@ -1,27 +1,12 @@
-/**
- * Centralized patch extraction with a per-model normalizer registry.
- *
- * When a new model produces non-standard output (e.g. JSON-escaped text,
- * markdown wrappers, extra commentary), add one entry to MODEL_NORMALIZERS
- * below. Strategy code never needs to change.
- */
+// Per-model normalizers live here. When a new model produces weird output
+// (JSON-escaped text, etc.) just add an entry to MODEL_NORMALIZERS below.
 
 interface ModelNormalizer {
-  /** Return true when this normalizer should apply. */
   matches: (providerName: string, model: string) => boolean;
-  /** Transform the raw model output before patch extraction. */
   normalize: (text: string) => string;
 }
 
-// ---------------------------------------------------------------------------
-// Normalizer implementations
-// ---------------------------------------------------------------------------
-
-/**
- * Some models output patch content with JSON-style escape sequences
- * (\n, \t, \") instead of literal characters, collapsing all lines into one.
- * Unescape in the correct order to avoid double-processing.
- */
+// some models collapse the patch to one line with \n escapes instead of real newlines
 function unescapeJsonEscapes(text: string): string {
   return text
     .replace(/\\\\/g, "\x00") // protect real double-backslashes first
@@ -30,10 +15,6 @@ function unescapeJsonEscapes(text: string): string {
     .replace(/\\"/g, '"')
     .replace(/\x00/g, "\\");
 }
-
-// ---------------------------------------------------------------------------
-// Registry — add one entry per model that needs special handling
-// ---------------------------------------------------------------------------
 
 const MODEL_NORMALIZERS: ModelNormalizer[] = [
   {
@@ -44,19 +25,6 @@ const MODEL_NORMALIZERS: ModelNormalizer[] = [
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-/**
- * Extract a unified-diff patch from raw model output.
- *
- * Applies any registered model-specific normalizer first, then tries:
- *   1. <patch>…</patch> tags
- *   2. ```diff or ```patch fenced code blocks
- *
- * Returns null if no patch is found.
- */
 export function extractPatch(
   text: string,
   providerName: string,

@@ -16,14 +16,7 @@ export interface RunTestsResult {
   stderr: string;
 }
 
-// ---------------------------------------------------------------------------
-// Fixed execution parameters — never overridden by external input.
-// ---------------------------------------------------------------------------
-
-/**
- * The only pytest invocation this tool will ever run.
- * External callers cannot append, remove, or replace any of these flags.
- */
+// these flags are hardcoded — callers can't add or change them
 const PYTEST_FLAGS: readonly string[] = [
   "-m",
   "pytest",
@@ -34,24 +27,13 @@ const PYTEST_FLAGS: readonly string[] = [
 
 const TIMEOUT_MS = 60_000;
 
-// ---------------------------------------------------------------------------
-// Command validation
-// ---------------------------------------------------------------------------
-
-/**
- * Exact set of accepted command strings.
- * Only bare invocations are permitted — no additional arguments allowed.
- */
+// only bare invocations — no extra args
 const ALLOWED_COMMANDS = new Set([
   "pytest",
   "python -m pytest",
   "python3 -m pytest",
 ]);
 
-/**
- * Validates that `command` is one of the exact allowed strings.
- * Any extra arguments (e.g. "pytest tests/") are rejected.
- */
 function validateCommand(command: string): void {
   const normalized = command.trim().replace(/\s+/g, " ");
   if (!ALLOWED_COMMANDS.has(normalized)) {
@@ -62,15 +44,6 @@ function validateCommand(command: string): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Python binary resolution
-// ---------------------------------------------------------------------------
-
-/**
- * Returns the Python binary to use.
- * Reads PYTHON_BIN from the server environment; defaults to "python".
- * Rejects values that contain whitespace to prevent argument injection.
- */
 function getPythonBin(): string {
   const bin = process.env["PYTHON_BIN"];
   if (bin !== undefined && bin.trim().length > 0) {
@@ -102,14 +75,6 @@ function validateTestNodeIds(tests: string[] | undefined): string[] {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Spawn-based execution (no shell)
-// ---------------------------------------------------------------------------
-
-/**
- * Spawns `pythonBin PYTEST_FLAGS` in `cwd` without a shell.
- * Always resolves — never rejects.
- */
 function spawnPytest(
   pythonBin: string,
   cwd: string,
@@ -162,13 +127,8 @@ function spawnPytest(
   });
 }
 
-// ---------------------------------------------------------------------------
-// Tool entry point
-// ---------------------------------------------------------------------------
-
 export async function runTests(rawArgs: unknown): Promise<RunTestsResult> {
   const args = RunTestsSchema.parse(rawArgs);
-  // Validate the caller's command string; the value itself is not forwarded.
   validateCommand(args.command);
   const pythonBin = getPythonBin();
   const cwd = getTargetRepo();

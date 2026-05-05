@@ -52,8 +52,7 @@ function tokenFrequency(tokens: string[]): Map<string, number> {
   return frequencies;
 }
 
-// Fix 1 (source boost) + Fix 3 (BM25 IDF): score each chunk using IDF-weighted
-// token matching; multiply final score for pyservicelab/ source files.
+// IDF-weighted token match; source files under pyservicelab/ get a score boost
 function scoreChunk(
   queryTokens: string[],
   chunk: RagChunk,
@@ -75,8 +74,7 @@ function scoreChunk(
   let pathBoostSum = 0;
 
   for (const token of uniqueQueryTokens) {
-    // Default IDF of 1.0 for tokens absent from the corpus (treat as moderately rare).
-    const tokenIdf = idf.get(token) ?? 1.0;
+    const tokenIdf = idf.get(token) ?? 1.0; // unknown tokens treated as moderately rare
     totalIdfSum += tokenIdf;
 
     const frequency = chunkFreq.get(token);
@@ -136,11 +134,7 @@ export function retrieveRelevantChunks(
       return a.chunk.id.localeCompare(b.chunk.id);
     });
 
-  // Fix 2: cap the number of chunks kept per file so that overlapping 120-line
-  // windows don't fill the top-K with near-duplicate content from one file.
-  // maxChunksPerFile=0 disables the cap (no deduplication).
-  // maxChunksPerFile=2 allows up to 2 chunks per file, covering large files
-  // where the relevant code spans multiple windows.
+  // cap chunks per file so overlapping windows from one big file don't crowd out others
   if (maxChunksPerFile <= 0) {
     return scored.slice(0, topK);
   }

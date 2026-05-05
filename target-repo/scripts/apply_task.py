@@ -1,14 +1,10 @@
 """Apply a task patch to the repository.
 
-Usage::
-
+Usage:
     python scripts/apply_task.py task_01_token_expiry_bypass
 
-The script:
-1. Validates that the working tree is clean (no uncommitted changes).
-2. Locates the requested ``.patch`` file under the ``tasks/`` directory.
-3. Applies the patch with ``git apply``.
-4. Prints the name of the test(s) that are expected to fail.
+Checks for a clean tree, finds the .patch file, applies it, and prints
+the expected failing tests so you know what to run.
 """
 from __future__ import annotations
 
@@ -16,11 +12,6 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import TypedDict
-
-# ---------------------------------------------------------------------------
-# Registry: map task name → task type + expected failing test node-ids
-# ---------------------------------------------------------------------------
-
 
 class TaskInfo(TypedDict):
     task_type: str  # "bug_fix" | "feature" | "test_fix"

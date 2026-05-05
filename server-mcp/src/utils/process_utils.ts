@@ -6,10 +6,6 @@ export interface ProcessResult {
   stderr: string;
 }
 
-/**
- * Runs a command (no shell) with a hard timeout and cwd restriction.
- * Always resolves — never rejects.
- */
 export async function runProcess(
   command: string,
   args: string[],

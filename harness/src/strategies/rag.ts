@@ -11,9 +11,8 @@ const MAX_TOKENS = 16384;
 const TOP_K = 8;
 const MAX_ITERATIONS = 3;
 
-// Fix 4: extract individual word parts from test class/method names so that
-// function-name tokens like "search", "purge", "validate" appear explicitly
-// in the query alongside the full compound identifiers.
+// pull out individual words from test names so the query includes tokens
+// like "search" and "purge" rather than just the full compound identifier
 function extractTestFunctionParts(testIds: string[]): string[] {
   const parts = new Set<string>();
   for (const testId of testIds) {
@@ -24,9 +23,7 @@ function extractTestFunctionParts(testIds: string[]): string[] {
         ? segment.slice(4)
         : null;
       if (!stripped || stripped.length < 3) continue;
-      // Full snake_case name (matched as single token by the tokenizer).
       parts.add(stripped);
-      // Individual words split on underscores and camelCase boundaries.
       for (const word of stripped.replace(/([A-Z])/g, " $1").toLowerCase().split(/[_ ]+/)) {
         if (word.length >= 3) parts.add(word);
       }
@@ -175,9 +172,7 @@ export class RagStrategy implements Strategy {
       let retrievedChars = 0;
       let retrievedLines = 0;
 
-      // Fix 1: for bug_fix/feature tasks the LLM needs source code to write a patch,
-      // so boost pyservicelab/ chunks over test files. For test_fix the test file IS
-      // the target, so no boost is applied.
+      // for test_fix the test file is the target, so no source boost
       const sourceBoostFactor = ctx.task_type === "test_fix" ? 1.0 : 2.0;
 
       for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {

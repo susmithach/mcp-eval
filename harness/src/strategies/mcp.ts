@@ -6,21 +6,11 @@ import type { ResultSchema } from "../runner/result_schema.js";
 import type { Strategy, StrategyContext } from "./strategy.js";
 import { MCP_TOOL_DEFINITIONS, dispatchTool, normalizeToolName } from "./mcp_tools.js";
 
-// Fix #4: was 8096 — raised to match RAG/Prompt so the model has enough room
-// to reason about a file it just read AND format a complete patch in one turn.
 const MAX_TOKENS = 16384;
 const MAX_ITERATIONS = 30;
-// Fix #2: window is kept small; summarizeAndTrim replaces evicted content with
-// a structured memo so the model never loses track of what it already did.
+// keep history short; old turns are replaced with a summary memo so the
+// model doesn't lose track of what it already read
 const MAX_HISTORY_MESSAGES = 12;
-
-// ---------------------------------------------------------------------------
-// Fix #2 — Context summarization
-// When messages exceed MAX_HISTORY_MESSAGES, extract key facts from the evicted
-// turns and inject them as a compact memo rather than silently dropping them.
-// This prevents the re-read loop where the model keeps re-fetching files whose
-// results were trimmed away.
-// ---------------------------------------------------------------------------
 
 function extractFirstError(stdout: string): string {
   for (const line of stdout.split("\n")) {
@@ -122,10 +112,6 @@ function summarizeAndTrim(
   return result;
 }
 
-// ---------------------------------------------------------------------------
-// Run instruction builder
-// ---------------------------------------------------------------------------
-
 function buildRunInstruction(ctx: StrategyContext): string {
   const tests = ctx.expected_failing_tests.join(", ");
 
@@ -159,10 +145,6 @@ function buildRunInstruction(ctx: StrategyContext): string {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Strategy
-// ---------------------------------------------------------------------------
-
 export class McpStrategy implements Strategy {
   async run(ctx: StrategyContext): Promise<ResultSchema> {
     const client = new McpHarnessClient();
@@ -187,11 +169,7 @@ export class McpStrategy implements Strategy {
       let applyPatchAttempts = 0;
       let appliedPatchSucceeded = false;
 
-      // Staleness-based nudge: fires when the model has spent N consecutive
-      // iterations revisiting the same files and searches without applying any
-      // change. This is a behavioral signal — not a fixed iteration count or
-      // task-type gate — so it applies equally to all task types and would
-      // also catch over-exploration on tasks that would otherwise pass.
+      // fires after N iterations of reading the same files with no patch attempt
       const STALE_THRESHOLD = 3;
       const filesSeenSet = new Set<string>();
       const searchesSeen = new Set<string>();
@@ -204,7 +182,7 @@ export class McpStrategy implements Strategy {
 
         const response = await provider.createToolResponse({
           systemPrompt,
-          messages: summarizeAndTrim(messages), // Fix #2: was trimConversation
+          messages: summarizeAndTrim(messages),
           tools: MCP_TOOL_DEFINITIONS,
           maxTokens: MAX_TOKENS,
         });
@@ -259,10 +237,8 @@ export class McpStrategy implements Strategy {
           results: toolResults,
         });
 
-        // Fix #1: exit as soon as a run_tests result shows the target tests
-        // passing. Without this, the model keeps going after a successful fix
-        // and can undo it (as happened in task_03: fixed at iter ~10, then
-        // spent 20 more iterations breaking its own correct patch).
+        // stop as soon as the target tests pass — otherwise the model can
+        // keep going and accidentally break its own correct fix
         const targetTestsPassed = response.toolCalls.some((tc, i) => {
           if (normalizeToolName(tc.name, tc.input) !== "run_tests") return false;
           try {
@@ -282,10 +258,7 @@ export class McpStrategy implements Strategy {
           break;
         }
 
-        // Staleness nudge: if the model has spent STALE_THRESHOLD consecutive
-        // iterations reading the same files and running the same searches with
-        // no patch attempt, it is cycling. Fire once to break the loop.
-        // This is behavior-driven, not task-type or iteration-count gated.
+        // nudge the model if it's been cycling through the same reads
         {
           let gainedNewInfo = false;
           let patchThisIteration = false;
@@ -328,7 +301,7 @@ export class McpStrategy implements Strategy {
         }
       }
 
-      // Ground-truth success check — independent of what the model claims.
+      // always verify with a fresh test run regardless of what the model said
       const finalTests = await client.runTests(ctx.expected_failing_tests);
       ctx.metrics.recordToolCall("run_tests");
       testsPassed = finalTests.passed;

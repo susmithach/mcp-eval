@@ -7,11 +7,6 @@ import { extractPatch } from "./patch_extractor.js";
 
 const MAX_TOKENS = 8096;
 
-// ---------------------------------------------------------------------------
-// Recursive source file collector
-// Not counted as LLM tool calls — this is harness-side context building.
-// ---------------------------------------------------------------------------
-
 async function collectPythonFiles(
   client: McpHarnessClient,
   dir: string,
@@ -78,10 +73,6 @@ function countTotalLines(files: Map<string, string>): number {
     0,
   );
 }
-
-// ---------------------------------------------------------------------------
-// Strategy
-// ---------------------------------------------------------------------------
 
 export class PromptOnlyStrategy implements Strategy {
   async run(ctx: StrategyContext): Promise<ResultSchema> {

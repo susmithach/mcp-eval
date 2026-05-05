@@ -16,20 +16,12 @@ import { readFile } from "./tools/read_file.js";
 import { runTests } from "./tools/run_tests.js";
 import { searchInFiles } from "./tools/search_in_files.js";
 
-// ---------------------------------------------------------------------------
-// Server instance
-// ---------------------------------------------------------------------------
-
 const server = new Server(
   { name: "server-mcp", version: "1.0.0" },
   { capabilities: { tools: {} } },
 );
 
 loadProjectEnv();
-
-// ---------------------------------------------------------------------------
-// Tool definitions
-// ---------------------------------------------------------------------------
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
@@ -140,10 +132,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   ],
 }));
 
-// ---------------------------------------------------------------------------
-// Tool dispatch
-// ---------------------------------------------------------------------------
-
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
@@ -200,10 +188,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     );
   }
 });
-
-// ---------------------------------------------------------------------------
-// Start
-// ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();

@@ -5,10 +5,6 @@ import {
 } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { resolvePythonBin } from "../python.js";
 
-// ---------------------------------------------------------------------------
-// Result types (mirror server-mcp response shapes)
-// ---------------------------------------------------------------------------
-
 export interface ListFilesResult {
   files: string[];
   directories: string[];
@@ -45,10 +41,6 @@ export interface ApplyPatchResult {
   error: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// Client
-// ---------------------------------------------------------------------------
-
 export class McpHarnessClient {
   private client: Client;
   private transport: StdioClientTransport;
@@ -60,9 +52,6 @@ export class McpHarnessClient {
     this.transport = new StdioClientTransport({
       command: "node",
       args: ["../server-mcp/build/index.js"],
-      // Inherit safe env vars and resolve the Python binary.
-      // Respects PYTHON_BIN from the harness environment; defaults to python3
-      // because `python` is not available on this system.
       env: {
         ...getDefaultEnvironment(),
         PYTHON_BIN: resolvePythonBin(),
@@ -91,8 +80,7 @@ export class McpHarnessClient {
   ): Promise<T> {
     this.toolCallCount++;
     const raw = await this.client.callTool({ name, arguments: args });
-    // The SDK return type carries a `[x: string]: unknown` index signature that
-    // widens all property accesses to `unknown`, so we cast content explicitly.
+    // SDK widens content to unknown, so we cast explicitly
     const content = raw.content as Array<{ type: string; text?: string }>;
     const first = content[0];
     if (!first || first.type !== "text" || first.text === undefined) {

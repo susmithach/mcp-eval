@@ -8,10 +8,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const TARGET_REPO = resolve(__dirname, "../../../target-repo");
 const PYTHON = resolvePythonBin();
 
-// ---------------------------------------------------------------------------
-// Internal helper
-// ---------------------------------------------------------------------------
-
 function run(cmd: string, args: string[]): Promise<void> {
   return new Promise((resolveP, rejectP) => {
     const child = spawn(cmd, args, { cwd: TARGET_REPO, shell: false });
@@ -44,10 +40,6 @@ function run(cmd: string, args: string[]): Promise<void> {
     });
   });
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 export async function resetRepo(): Promise<void> {
   await run(PYTHON, ["scripts/reset_repo.py"]);

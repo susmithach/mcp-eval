@@ -9,10 +9,6 @@ import type {
   SearchInFilesResult,
 } from "../mcp/client.js";
 
-// ---------------------------------------------------------------------------
-// Tool definitions — mirrors the MCP server's input schemas
-// ---------------------------------------------------------------------------
-
 export const MCP_TOOL_DEFINITIONS: LlmToolDefinition[] = [
   {
     name: "list_files",
@@ -117,8 +113,6 @@ const TOOL_NAME_ALIASES: Record<string, string> = {
   view_file: "read_file",
 };
 
-// Fix #4: was 12_000 — reduced so a single file read doesn't consume the
-// model's entire reasoning budget and force it to reconstruct paths from memory.
 const READ_FILE_CHAR_LIMIT = 8_000;
 const RUN_TESTS_CHAR_LIMIT = 6_000;
 const GIT_DIFF_CHAR_LIMIT = 6_000;
@@ -220,10 +214,6 @@ function formatToolResult(name: string, result: unknown): string {
       return JSON.stringify(result);
   }
 }
-
-// ---------------------------------------------------------------------------
-// Tool dispatcher — translates Claude tool_use blocks to MCP client calls
-// ---------------------------------------------------------------------------
 
 export async function dispatchTool(
   client: McpHarnessClient,

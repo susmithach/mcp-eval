@@ -11,11 +11,6 @@ const IGNORED_DIRECTORIES = new Set([
 ]);
 const IGNORED_FILE_SUFFIXES = [".pyc", ".pyo"];
 
-/**
- * Returns the absolute path of the sandboxed target repository.
- * Controlled by TARGET_REPO env var; defaults to ../target-repo
- * relative to the server-mcp working directory.
- */
 export function getTargetRepo(): string {
   const env = process.env.TARGET_REPO;
   if (env) {
@@ -24,10 +19,6 @@ export function getTargetRepo(): string {
   return path.resolve(process.cwd(), "../target-repo");
 }
 
-/**
- * Resolves `userPath` relative to `base` and throws if the result
- * escapes the sandbox.
- */
 export function resolveSafe(base: string, userPath: string): string {
   const normalBase = path.resolve(base);
   const resolved = path.resolve(normalBase, userPath);
@@ -65,10 +56,6 @@ export function getFileSize(resolvedPath: string): number {
   return fs.statSync(resolvedPath).size;
 }
 
-/**
- * Recursively yield all file paths under `dir`.
- * Skips entries that cannot be read.
- */
 export function* walkFiles(dir: string): Generator<string> {
   let entries: fs.Dirent[];
   try {

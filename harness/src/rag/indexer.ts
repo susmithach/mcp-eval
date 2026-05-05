@@ -51,8 +51,7 @@ function toRepoRelativePath(absolutePath: string): string {
     : absolutePath;
 }
 
-// Fix 3 (BM25 IDF): precompute per-token inverse document frequency across all chunks.
-// idf(t) = log((N+1) / (df(t)+1)) — tokens that appear in few chunks score higher.
+// idf(t) = log((N+1)/(df(t)+1)) — rare tokens score higher
 function buildIdf(chunks: RagChunk[]): Map<string, number> {
   const docFreq = new Map<string, number>();
   const N = chunks.length;

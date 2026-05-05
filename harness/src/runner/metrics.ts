@@ -120,18 +120,8 @@ function inferFailureCategory(args: {
     return "runtime_error";
   }
 
-  // Fix #5: use patchGenerated + finalDiff together as the source of truth.
-  // patchApplied is a bookkeeping flag that can be false even when the Codex
-  // fallback successfully wrote the file. The diff never lies about what
-  // actually changed on disk.
-  //
-  // Decision table:
-  //   patchGenerated=false                → no_patch   (model never tried)
-  //   patchGenerated=true, diff empty     → patch_apply_failure (tried, nothing written)
-  //   patchGenerated=true, diff non-empty → wrong_logic (patch landed, tests still fail)
-  //
-  // Note: when patchGenerated=false the diff is often non-empty because the
-  // task's own bug patch is still applied — that is NOT a model-generated fix.
+  // use patchGenerated + finalDiff as the source of truth; patchApplied can be
+  // wrong when a fallback path writes the file but doesn't set the flag
   if (!args.patchGenerated) {
     return "no_patch";
   }
@@ -246,7 +236,7 @@ export class MetricsTracker {
 
     const tokens_total = this._tokensIn + this._tokensOut;
 
-    // Prefer MCP files_read > RAG retrieved_files > prompt context_files
+    // prefer whichever access metric is most specific to the strategy used
     const filesAccessed =
       this._accessMetrics.files_read_count ||
       this._retrievalMetrics.retrieved_files_count ||

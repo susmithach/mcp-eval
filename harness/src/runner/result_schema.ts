@@ -1,8 +1,3 @@
-/**
- * Canonical result record for a single evaluation run.
- * All fields are always present so downstream consumers can rely on a fixed shape.
- * Timestamps are intentionally omitted — only duration (runtime_ms) is stored.
- */
 export type TaskType = "bug_fix" | "feature" | "test_fix";
 export type FailureCategory =
   | "provider_error"

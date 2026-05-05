@@ -15,10 +15,6 @@ const RESULTS_DIR = resolve(__dirname, "../results");
 
 loadProjectEnv();
 
-// ---------------------------------------------------------------------------
-// Task registry
-// ---------------------------------------------------------------------------
-
 interface TaskConfig {
   task_id: string;
   task_patch_file: string;
@@ -101,10 +97,6 @@ const TASKS: TaskConfig[] = [
   },
 ];
 
-// ---------------------------------------------------------------------------
-// CLI arg parsers
-// ---------------------------------------------------------------------------
-
 function strategyFromArgs(): { name: string; instance: Strategy } {
   const arg = process.argv.find((a) => a.startsWith("--strategy="));
   const name = arg ? arg.split("=")[1] : "mcp";
@@ -143,10 +135,6 @@ function runsFromArgs(): number {
   }
   return n;
 }
-
-// ---------------------------------------------------------------------------
-// Summary table printer
-// ---------------------------------------------------------------------------
 
 function printSummaryTable(
   results: ResultSchema[],
@@ -188,10 +176,6 @@ function printSummaryTable(
   console.log(`│  Failures by type:  ${failStr.padEnd(24)}│`);
   console.log("└─────────────────────────────────────────────┘\n");
 }
-
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
 
 const { name: strategyName, instance: strategy } = strategyFromArgs();
 const taskConfig = taskFromArgs();

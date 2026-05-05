@@ -10,10 +10,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // dist/runner/ → ../../ = harness root (where results/ lives)
 const HARNESS_ROOT = resolve(__dirname, "../..");
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export interface RunTaskParams {
   task_id: string;
   task_patch_file: string;
@@ -23,10 +19,6 @@ export interface RunTaskParams {
   run_id: string;
   strategy: Strategy;
 }
-
-// ---------------------------------------------------------------------------
-// Pipeline
-// ---------------------------------------------------------------------------
 
 export async function runTask(params: RunTaskParams): Promise<ResultSchema> {
   const {
@@ -40,7 +32,6 @@ export async function runTask(params: RunTaskParams): Promise<ResultSchema> {
   } = params;
   const metrics = new MetricsTracker();
 
-  // 1–2) Repo setup — short-circuit with error result if this fails
   try {
     await resetRepo();
     await applyTask(task_patch_file);
@@ -54,8 +45,6 @@ export async function runTask(params: RunTaskParams): Promise<ResultSchema> {
     return result;
   }
 
-  // 3–5) Delegate to strategy — strategy owns its own error handling
-  //      and calls metrics.finish() exactly once before returning
   const result = await strategy.run({
     task_id,
     task_type,
@@ -63,14 +52,9 @@ export async function runTask(params: RunTaskParams): Promise<ResultSchema> {
     metrics,
   });
 
-  // 6) Persist result
   await saveResult(task_id, strategy_name, run_id, result);
   return result;
 }
-
-// ---------------------------------------------------------------------------
-// Persistence
-// ---------------------------------------------------------------------------
 
 async function saveResult(
   task_id: string,
