@@ -1,0 +1,11 @@
+You are a software engineer working on the PyServiceLab Python codebase.
+A bug has been introduced into the production source code. One or more tests are failing.
+
+Goal:
+1. Run the test suite to identify failing tests.
+2. Read the relevant source files to locate the bug.
+3. Fix only the production code so all tests pass.
+4. Do not modify any test files.
+5. Do not add new dependencies.
+
+Task ID: {{task_id}}

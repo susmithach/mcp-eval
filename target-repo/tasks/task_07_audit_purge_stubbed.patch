@@ -1,0 +1,14 @@
+diff --git a/target-repo/pyservicelab/services/audit_service.py b/target-repo/pyservicelab/services/audit_service.py
+index cf9a78f..a0d8276 100644
+--- a/target-repo/pyservicelab/services/audit_service.py
++++ b/target-repo/pyservicelab/services/audit_service.py
+@@ -168,7 +168,5 @@ class AuditService:
+         Returns:
+             Number of entries deleted.
+         """
+-        from pyservicelab.core.time import utcnow
+-
+-        cutoff = utcnow() - timedelta(days=days)
+-        return self._repo.purge_before(cutoff)
++        # stub: purge not yet implemented
++        return 0

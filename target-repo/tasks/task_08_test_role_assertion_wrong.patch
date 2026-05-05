@@ -1,0 +1,13 @@
+diff --git a/target-repo/tests/test_users.py b/target-repo/tests/test_users.py
+index b47d1e3..ada6dcf 100644
+--- a/target-repo/tests/test_users.py
++++ b/target-repo/tests/test_users.py
+@@ -34,7 +34,7 @@ class TestCreateUser:
+             email="carol@example.com",
+             password="CarolPass1!",
+         )
+-        assert user.role == UserRole.MEMBER
++        assert user.role == UserRole.ADMIN
+ 
+     def test_create_with_admin_role(self, user_service: UserService) -> None:
+         user = user_service.create_user(
